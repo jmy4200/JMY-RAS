@@ -3,16 +3,38 @@ import platform
 import socket
 
 import psutil
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
+from pydantic import BaseModel, Field
+
+from .db import init_db, connect
+from .security import create_pairing_code, pair_device, authenticate_token
 
 app = FastAPI(
     title="JMY Remote Access System",
-    description=(
-        "Early-stage, consent-based remote administration "
-        "and digital forensics platform."
-    ),
-    version="0.1.0",
+    description="Consent-based remote administration and digital forensics development platform.",
+    version="0.2.0",
 )
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
+
+class PairRequest(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+    device_name: str = Field(min_length=1, max_length=80)
+    platform: str = Field(min_length=1, max_length=80)
+
+
+def current_device(authorization: str | None = Header(default=None)):
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    token = authorization.split(" ", 1)[1].strip()
+    device = authenticate_token(token)
+    if not device:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    return device
 
 
 @app.get("/", tags=["status"])
@@ -21,16 +43,13 @@ def home():
         "system": "JMY-RAS",
         "version": app.version,
         "status": "running",
-        "notice": "Development scaffold; remote-control features are not enabled.",
+        "notice": "Pairing/auth foundation only. Remote-control functions are not enabled.",
     }
 
 
 @app.get("/api/health", tags=["status"])
 def health():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.get("/api/system/info", tags=["inventory"])
@@ -49,3 +68,41 @@ def system_info():
             "used_percent": memory.percent,
         },
     }
+
+
+@app.post("/api/pairing/code", tags=["pairing"])
+def new_pairing_code():
+    # Keep this API bound to loopback; add owner confirmation and rate limiting
+    # before allowing access from another machine.
+    return {"pairing_code": create_pairing_code(), "expires_in_seconds": 300}
+
+
+@app.post("/api/pairing/claim", tags=["pairing"])
+def claim_pairing(request: PairRequest):
+    result = pair_device(request.code, request.device_name, request.platform)
+    if not result:
+        raise HTTPException(status_code=400, detail="Pairing code invalid, expired, or already used")
+    return result
+
+
+@app.get("/api/devices/me", tags=["devices"])
+def my_device(device=Depends(current_device)):
+    return device
+
+
+@app.get("/api/devices", tags=["devices"])
+def list_devices(device=Depends(current_device)):
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id,name,platform,created_at,last_seen FROM devices ORDER BY created_at"
+        ).fetchall()
+    return {"devices": [dict(row) for row in rows]}
+
+
+@app.get("/api/audit/recent", tags=["audit"])
+def recent_audit(device=Depends(current_device)):
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT event,device_id,details,timestamp FROM audit_events ORDER BY id DESC LIMIT 100"
+        ).fetchall()
+    return {"events": [dict(row) for row in rows]}
