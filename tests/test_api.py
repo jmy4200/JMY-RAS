@@ -69,3 +69,17 @@ def test_remote_client_cannot_generate_pairing_code():
 
 def test_protected_endpoint_rejects_missing_token(client):
     assert client.get("/api/devices/me").status_code == 401
+
+
+def test_dashboard_is_served(client):
+    response = client.get("/dashboard/")
+    assert response.status_code == 200
+    assert "JMY-RAS" in response.text
+    assert 'app.js?v=0.4.1' in response.text
+
+
+def test_dashboard_script_contains_session_token_restore(client):
+    response = client.get("/dashboard/assets/app.js")
+    assert response.status_code == 200
+    assert "sessionStorage.getItem(TOKEN_KEY)" in response.text
+    assert 'Authorization: "Bearer " + token' in response.text
