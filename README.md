@@ -3,10 +3,11 @@
 Cross-platform, consent-based remote administration and digital forensics toolkit. Early development scaffold.
 
 ## Current status
-**v0.3.0 — LAN discovery and pairing foundation.** The API can report usable IPv4 addresses and accept a pairing claim from a LAN client. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
+**v0.4.2 — Offline-first dashboard and LAN pairing.** The dashboard shell is cached for offline viewing, and operator notes can be queued locally then synchronized to the host when the authenticated connection returns. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
 
 ## Goals
 - Offline access on a shared LAN
+- Offline-first local notes with authenticated, idempotent synchronization
 - Secure remote access over private networking (e.g. WireGuard)
 - Windows and Linux host support, with additional OS adapters later
 - Remote screen, keyboard/mouse, terminal, and file transfer with explicit user consent
@@ -57,14 +58,22 @@ This is a development-only HTTP prototype. Use only on a trusted private network
 - Only install agents on devices you own or are authorized to administer.
 - Forensics features should preserve evidence integrity and record operator actions.
 
+## Offline-first behavior (v0.4.2)
+- The dashboard application shell is cached by its service worker for offline reopening after it has first loaded successfully.
+- Operator notes are stored in the current browser's local storage while offline.
+- When the host API becomes reachable and the browser has a valid paired bearer token, queued notes are sent to `POST /api/sync/events`.
+- The server deduplicates events by UUID so retrying a sync does not create duplicate notes.
+- Local notes remain in that browser until the server confirms the sync. Clearing browser site data can erase notes that have not synced; do not use this queue as the only copy of critical forensic evidence.
+- Offline mode does not mean remote control works without a communication path. For access between sites 100 km apart, use an independently available private network link (for example a properly secured site-to-site VPN over available connectivity, or a private radio/fiber WAN).
+
 ## Roadmap
-1. API foundation and system inventory
-2. Authentication, device identity, pairing, and audit events
-3. LAN discovery and encrypted transport
-4. Consent-based screen sharing and input adapters
-5. Secure file transfer and terminal sessions
-6. Forensic collection, manifests, and hash verification
-7. Windows/Linux packaging; mobile and macOS clients
+1. Offline-first dashboard, queued notes, and authenticated synchronization
+2. Owner authentication, device revocation, and audit improvements
+3. Encrypted transport and private networking (e.g. WireGuard)
+4. Consent-based screen sharing and visible input-control approval
+5. Secure file transfer and explicitly approved terminal sessions
+6. Forensic collection, manifests, and SHA-256 integrity verification
+7. Windows/Linux packaging; mobile clients
 
 ## License
 MIT (see LICENSE).
