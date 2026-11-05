@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -54,7 +55,7 @@ def test_pairing_and_authenticated_routes(client):
     assert client.get("/api/devices/me", headers=headers).status_code == 200
     assert client.get("/api/devices", headers=headers).status_code == 200
     assert client.get("/api/audit/recent", headers=headers).status_code == 200
-    sync_body = {"events": [{"event_id": "123e4567-e89b-12d3-a456-426614174000", "event_type": "operator_note", "note": "Offline check completed", "client_created_at": "2026-11-05T10:00:00+00:00"}]}
+    sync_body = {"events": [{"event_id": str(uuid.uuid4()), "event_type": "operator_note", "note": "Offline check completed", "client_created_at": "2026-11-05T10:00:00+00:00"}]}
     synced = client.post("/api/sync/events", json=sync_body, headers=headers)
     assert synced.status_code == 200
     assert synced.json()["accepted"] == 1
@@ -86,7 +87,7 @@ def test_dashboard_is_served(client):
     response = client.get("/dashboard/")
     assert response.status_code == 200
     assert "JMY-RAS" in response.text
-    assert 'app.js?v=0.4.1' in response.text
+    assert 'app.js?v=0.4.2' in response.text
 
 
 def test_dashboard_script_contains_session_token_restore(client):
