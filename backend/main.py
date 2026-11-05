@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
+import json
 import platform
 import socket
 from pathlib import Path
+from typing import Literal
 
 import psutil
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -15,7 +17,7 @@ from .security import create_pairing_code, pair_device, authenticate_token
 app = FastAPI(
     title="JMY Remote Access System",
     description="Consent-based remote administration and digital forensics development platform.",
-    version="0.3.0",
+    version="0.4.2",
 )
 
 
@@ -28,6 +30,17 @@ class PairRequest(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
     device_name: str = Field(min_length=1, max_length=80)
     platform: str = Field(min_length=1, max_length=80)
+
+
+class OfflineEvent(BaseModel):
+    event_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+    event_type: Literal["operator_note"] = "operator_note"
+    note: str = Field(min_length=1, max_length=500)
+    client_created_at: str = Field(min_length=1, max_length=40)
+
+
+class OfflineSyncBatch(BaseModel):
+    events: list[OfflineEvent] = Field(min_length=1, max_length=50)
 
 
 def current_device(authorization: str | None = Header(default=None)):
@@ -46,7 +59,7 @@ def home():
         "system": "JMY-RAS",
         "version": app.version,
         "status": "running",
-        "notice": "LAN discovery and device pairing foundation only. Remote-control functions are not enabled.",
+        "notice": "Offline-first dashboard, LAN pairing and queued operator notes. Remote-control functions are not enabled.",
     }
 
 
@@ -86,8 +99,6 @@ def lan_info():
 
 @app.post("/api/pairing/code", tags=["pairing"])
 def new_pairing_code(request: Request):
-    # Pairing codes may only be created locally by the computer owner.
-    # A remote LAN client can claim a code, but cannot mint new codes.
     client_host = request.client.host if request.client else ""
     if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
         raise HTTPException(status_code=403, detail="Generate pairing codes locally on the host computer")
@@ -116,6 +127,47 @@ def list_devices(device=Depends(current_device)):
     return {"devices": [dict(row) for row in rows]}
 
 
+@app.post("/api/sync/events", tags=["offline sync"])
+def sync_offline_events(batch: OfflineSyncBatch, device=Depends(current_device)):
+    """Accept idempotent, consented operator notes queued by the offline dashboard."""
+    received_at = datetime.now(timezone.utc).isoformat()
+    accepted = 0
+    duplicates = 0
+    with connect() as conn:
+        for event in batch.events:
+            exists = conn.execute(
+                "SELECT 1 FROM sync_events WHERE event_id=?", (event.event_id,)
+            ).fetchone()
+            if exists:
+                duplicates += 1
+                continue
+            conn.execute(
+                """INSERT INTO sync_events
+                   (event_id,device_id,event_type,note,client_created_at,received_at)
+                   VALUES(?,?,?,?,?,?)""",
+                (event.event_id, device["id"], event.event_type, event.note,
+                 event.client_created_at, received_at),
+            )
+            accepted += 1
+        conn.execute(
+            "INSERT INTO audit_events(event,device_id,details,timestamp) VALUES(?,?,?,?)",
+            ("offline_events_synced", device["id"],
+             json.dumps({"accepted": accepted, "duplicates": duplicates}), received_at),
+        )
+    return {"accepted": accepted, "duplicates": duplicates, "received_at": received_at}
+
+
+@app.get("/api/sync/events", tags=["offline sync"])
+def list_synced_events(device=Depends(current_device)):
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT event_id,event_type,note,client_created_at,received_at
+               FROM sync_events WHERE device_id=? ORDER BY received_at DESC LIMIT 100""",
+            (device["id"],),
+        ).fetchall()
+    return {"events": [dict(row) for row in rows]}
+
+
 @app.get("/api/audit/recent", tags=["audit"])
 def recent_audit(device=Depends(current_device)):
     with connect() as conn:
@@ -125,6 +177,5 @@ def recent_audit(device=Depends(current_device)):
     return {"events": [dict(row) for row in rows]}
 
 
-# Browser dashboard: static assets; API endpoints retain their own auth rules.
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dashboard"
 app.mount("/dashboard", StaticFiles(directory=DASHBOARD_DIR, html=True), name="dashboard")
