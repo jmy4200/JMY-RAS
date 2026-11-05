@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 const TOKEN_KEY = "jmy_ras_session_token";
+const QUEUE_KEY = "jmy_ras_offline_queue";
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -17,6 +18,45 @@ function setToken(token) {
   else sessionStorage.removeItem(TOKEN_KEY);
 }
 
+function getQueue() {
+  try {
+    const value = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+function saveQueue(queue) {
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  renderQueue();
+}
+
+function renderQueue() {
+  const queue = getQueue();
+  $("queueCount").textContent = queue.length + (queue.length === 1 ? " note waiting to sync" : " notes waiting to sync");
+  const list = $("offlineNotes");
+  list.textContent = "";
+  if (!queue.length) {
+    list.textContent = "No pending local notes. Previously synced notes are available in the server audit records.";
+    return;
+  }
+  queue.slice().reverse().forEach(item => {
+    const row = document.createElement("div");
+    row.className = "device";
+    const detail = document.createElement("div");
+    const note = document.createElement("strong");
+    const time = document.createElement("small");
+    note.textContent = item.note;
+    time.textContent = new Date(item.client_created_at).toLocaleString() + " · Pending";
+    detail.append(note, time);
+    row.append(detail);
+    list.append(row);
+  });
+}
+
+function setConnectionLabel() {
+  $("connectionState").textContent = navigator.onLine ? "Network available" : "Offline";
+}
+
 async function refresh() {
   try {
     await api("/api/health");
@@ -31,8 +71,9 @@ async function refresh() {
     $("memBar").style.width = system.memory.used_percent + "%";
   } catch (error) {
     $("health").textContent = "Offline";
-    $("statusText").textContent = error.message;
+    $("statusText").textContent = "Host unavailable";
   }
+  setConnectionLabel();
 }
 
 $("generateCode").onclick = async () => {
@@ -74,6 +115,7 @@ $("claimForm").addEventListener("submit", async event => {
     output.textContent = "Phone paired successfully. Your token is saved for this browser tab session. Keep it private.";
     output.classList.remove("hidden");
     await devices();
+    await syncQueue();
   } catch (error) {
     output.textContent = "Pairing failed: " + error.message;
     output.classList.remove("hidden");
@@ -119,22 +161,82 @@ async function devices() {
   }
 }
 
+async function syncQueue() {
+  const queue = getQueue();
+  const token = $("token").value.trim();
+  if (!queue.length) {
+    $("syncMessage").textContent = "No notes are waiting to sync.";
+    renderQueue();
+    return;
+  }
+  if (!navigator.onLine) {
+    $("syncMessage").textContent = "Offline: notes remain safely queued on this browser.";
+    return;
+  }
+  if (!token) {
+    $("syncMessage").textContent = "Notes are saved locally. Pair this device or enter its access token to sync.";
+    return;
+  }
+  try {
+    const result = await api("/api/sync/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ events: queue })
+    });
+    const sentIds = new Set(queue.map(item => item.event_id));
+    saveQueue(getQueue().filter(item => !sentIds.has(item.event_id)));
+    $("syncMessage").textContent = result.accepted + " note(s) synced; " + result.duplicates + " duplicate(s) safely ignored.";
+  } catch (error) {
+    $("syncMessage").textContent = "Sync postponed: " + error.message + ". Notes remain on this browser.";
+  }
+}
+
+$("offlineNoteForm").addEventListener("submit", event => {
+  event.preventDefault();
+  const note = $("offlineNote").value.trim();
+  if (!note) return;
+  const queue = getQueue();
+  queue.push({
+    event_id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2),
+    event_type: "operator_note",
+    note,
+    client_created_at: new Date().toISOString()
+  });
+  try {
+    saveQueue(queue);
+    $("offlineNote").value = "";
+    $("syncMessage").textContent = "Note saved on this device. It will sync when the host is reachable.";
+    syncQueue();
+  } catch {
+    $("syncMessage").textContent = "Browser storage is unavailable or full. Export your note before leaving this page.";
+  }
+});
+
 $("saveToken").onclick = () => {
   const token = $("token").value.trim();
   if (token) sessionStorage.setItem(TOKEN_KEY, token);
   devices();
+  syncQueue();
 };
 $("clearToken").onclick = () => {
   setToken("");
   $("deviceList").textContent = "Token cleared from this browser tab session.";
 };
 $("refreshDevices").onclick = devices;
+$("syncNow").onclick = syncQueue;
+window.addEventListener("online", () => { setConnectionLabel(); refresh(); syncQueue(); });
+window.addEventListener("offline", setConnectionLabel);
 
 const savedToken = sessionStorage.getItem(TOKEN_KEY);
 if (savedToken) $("token").value = savedToken;
+renderQueue();
+setConnectionLabel();
 refresh();
-if (savedToken) devices();
-setInterval(refresh, 15000);
+if (savedToken) {
+  devices();
+  syncQueue();
+}
+setInterval(() => { refresh(); syncQueue(); }, 30000);
 
 if ("serviceWorker" in navigator &&
     (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
