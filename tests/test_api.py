@@ -8,6 +8,7 @@ def test_home():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json()["system"] == "JMY-RAS"
+    assert response.json()["version"] == "0.3.0"
 
 
 def test_health():
@@ -22,6 +23,14 @@ def test_system_info():
     data = response.json()
     assert "operating_system" in data
     assert "memory" in data
+
+
+def test_lan_info():
+    response = client.get("/api/network/lan-info")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["api_port"] == 8000
+    assert isinstance(data["addresses"], list)
 
 
 def test_pairing_and_authenticated_routes():
@@ -44,6 +53,12 @@ def test_pairing_and_authenticated_routes():
         "code": code, "device_name": "another-device", "platform": "Linux"
     })
     assert second_claim.status_code == 400
+
+
+def test_remote_client_cannot_generate_pairing_code():
+    remote_client = TestClient(app, client=("192.168.1.50", 50000))
+    response = remote_client.post("/api/pairing/code")
+    assert response.status_code == 403
 
 
 def test_protected_endpoint_rejects_missing_token():
