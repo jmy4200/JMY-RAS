@@ -3,16 +3,17 @@ import platform
 import socket
 
 import psutil
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .db import init_db, connect
+from .network import get_lan_addresses
 from .security import create_pairing_code, pair_device, authenticate_token
 
 app = FastAPI(
     title="JMY Remote Access System",
     description="Consent-based remote administration and digital forensics development platform.",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 
@@ -43,7 +44,7 @@ def home():
         "system": "JMY-RAS",
         "version": app.version,
         "status": "running",
-        "notice": "Pairing/auth foundation only. Remote-control functions are not enabled.",
+        "notice": "LAN discovery and device pairing foundation only. Remote-control functions are not enabled.",
     }
 
 
@@ -70,10 +71,24 @@ def system_info():
     }
 
 
+@app.get("/api/network/lan-info", tags=["network"])
+def lan_info():
+    """Expose connection instructions, not credentials or pairing secrets."""
+    return {
+        "hostname": socket.gethostname(),
+        "api_port": 8000,
+        "addresses": get_lan_addresses(),
+        "transport": "HTTP (development only; use encrypted transport before production)",
+    }
+
+
 @app.post("/api/pairing/code", tags=["pairing"])
-def new_pairing_code():
-    # Keep this API bound to loopback; add owner confirmation and rate limiting
-    # before allowing access from another machine.
+def new_pairing_code(request: Request):
+    # Pairing codes may only be created locally by the computer owner.
+    # A remote LAN client can claim a code, but cannot mint new codes.
+    client_host = request.client.host if request.client else ""
+    if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+        raise HTTPException(status_code=403, detail="Generate pairing codes locally on the host computer")
     return {"pairing_code": create_pairing_code(), "expires_in_seconds": 300}
 
 
