@@ -70,7 +70,7 @@ This is a development-only HTTP prototype. Use only on a trusted private network
 MIT (see LICENSE).
 
 
-## Web Dashboard (v0.4.0)
+## Web Dashboard (v0.4.1)
 
 Start the API on your host computer:
 
@@ -81,4 +81,4 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 Open the dashboard on the same computer: **http://127.0.0.1:8000/dashboard/**
 
-The dashboard displays host health, operating system, CPU and memory usage; generates local one-time pairing codes; and can show registered devices when supplied a paired bearer token. It is a development interface. The prototype uses HTTP and does not implement remote screen viewing or input control. Do not expose it to the public internet.
+The dashboard displays host health, operating system, CPU and memory usage; generates local one-time pairing codes; and can show registered devices when supplied a paired bearer token. After pairing, the token is retained in the current browser tab session so a page refresh does not immediately lose it. Closing the tab clears that session; never share the token in screenshots or chat. It is a development interface. The prototype uses HTTP and does not implement remote screen viewing or input control. Do not expose it to the public internet.
