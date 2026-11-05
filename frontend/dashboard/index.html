@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1220"><title>JMY-RAS | Control Center</title>
+  <link rel="stylesheet" href="/dashboard/assets/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">J</div><div><strong>JMY-RAS</strong><small>REMOTE ACCESS SYSTEM</small></div></div>
+    <nav><a class="active" href="#overview">◈ &nbsp; Overview</a><a href="#devices">▣ &nbsp; Devices</a><a href="#pairing">⌁ &nbsp; Pair a device</a><a href="#audit">≡ &nbsp; Audit & security</a></nav>
+    <div class="sidebar-foot"><span class="dot"></span> Local host dashboard<small>Build 0.4.0 · Developer preview</small></div>
+  </aside>
+  <main>
+    <header><div><span class="eyebrow">SYSTEM CONSOLE</span><h1>Control Center</h1><p>Monitor your host and manage trusted device pairing.</p></div><div class="status-pill"><span class="dot"></span><span id="statusText">Connecting…</span></div></header>
+    <section class="stats">
+      <article class="stat"><div class="stat-label">SYSTEM STATUS</div><div class="stat-value"><span class="green">●</span> <span id="health">Checking</span></div><div class="stat-note">API health</div></article>
+      <article class="stat"><div class="stat-label">OPERATING SYSTEM</div><div class="stat-value" id="os">—</div><div class="stat-note" id="host">Host information</div></article>
+      <article class="stat"><div class="stat-label">CPU LOAD</div><div class="stat-value" id="cpu">—</div><div class="meter"><i id="cpuBar"></i></div></article>
+      <article class="stat"><div class="stat-label">MEMORY USED</div><div class="stat-value" id="memory">—</div><div class="meter"><i id="memBar"></i></div></article>
+    </section>
+    <section class="grid">
+      <article class="panel" id="pairing"><div class="panel-head"><div><span class="eyebrow">SECURE ENROLLMENT</span><h2>Pair a new device</h2></div><span class="tag">5 MIN EXPIRY</span></div>
+        <p class="muted">Generate a one-time code on this host, then enter it on the device you want to enroll.</p>
+        <button id="generateCode" class="primary">＋ Generate pairing code</button>
+        <div id="codeBox" class="code-box hidden"><span>ONE-TIME PAIRING CODE</span><strong id="pairCode">------</strong><p id="expiry">Expires in 300 seconds. Keep it private.</p></div>
+        <div class="callout">⚠ Pairing codes must be generated from this computer. Use only a trusted private network. Current prototype uses HTTP, not encrypted HTTPS.</div>
+      </article>
+      <article class="panel" id="devices"><div class="panel-head"><div><span class="eyebrow">TRUSTED ENDPOINTS</span><h2>Registered devices</h2></div><button class="secondary" id="refreshDevices">↻ Refresh</button></div>
+        <label for="token">Host access token (optional for device list)</label><div class="token-row"><input id="token" type="password" placeholder="Paste paired device bearer token"><button class="secondary" id="saveToken">Use token</button></div>
+        <div id="deviceList" class="empty">Authenticate with a paired device token to load device inventory.</div>
+      </article>
+    </section>
+    <section class="panel" id="audit"><div class="panel-head"><div><span class="eyebrow">SECURITY & TRANSPARENCY</span><h2>Security status</h2></div><span class="tag warning">DEVELOPMENT MODE</span></div>
+      <div class="security-list"><div><span class="icon">✓</span><div><strong>Single-use pairing</strong><small>Pairing code expires after 5 minutes.</small></div></div><div><span class="icon">✓</span><div><strong>Token hashing</strong><small>Server stores a hash instead of the bearer token.</small></div></div><div><span class="icon">!</span><div><strong>Transport encryption not configured</strong><small>Do not use on public or untrusted networks.</small></div></div><div><span class="icon">!</span><div><strong>Remote control is not enabled</strong><small>This release is dashboard + pairing foundation only.</small></div></div></div>
+    </section>
+    <footer>JMY-RAS · Consent-based remote administration & digital forensics <span>Made for authorized systems only.</span></footer>
+  </main>
+  <script src="/dashboard/assets/app.js"></script>
+</body></html>
