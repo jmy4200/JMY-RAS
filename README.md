@@ -3,7 +3,7 @@
 Cross-platform, consent-based remote administration and digital forensics toolkit. Early development scaffold.
 
 ## Current status
-**v0.1.0 — foundation scaffold.** This repository is not yet a production remote desktop tool. Screen capture/control, secure pairing, network transport, and platform adapters are planned and must be implemented and security-reviewed before deployment.
+**v0.3.0 — LAN discovery and pairing foundation.** The API can report usable IPv4 addresses and accept a pairing claim from a LAN client. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
 
 ## Goals
 - Offline access on a shared LAN
@@ -25,10 +25,35 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 Open http://127.0.0.1:8000 and API docs at http://127.0.0.1:8000/docs.
 
+## Development: connect a phone on the same private LAN
+
+1. Connect the Linux host and phone to the same trusted Wi-Fi network or phone hotspot. Internet access is not required.
+2. On the Linux host, start the API on the LAN interface:
+   ```bash
+   uvicorn backend.main:app --host 0.0.0.0 --port 8000
+   ```
+3. On the Linux host itself, open http://127.0.0.1:8000/docs and call **POST /api/pairing/code**. Pairing-code creation is restricted to loopback clients.
+4. Open **GET /api/network/lan-info** to see the host's LAN IPv4 address.
+5. On the phone, open `http://HOST_LAN_IP:8000/docs`, then call **POST /api/pairing/claim** with the six-digit code, a device name, and platform.
+6. Keep the returned access token private. It is a credential; do not post it in chats, screenshots, or issue reports.
+
+Example claim body:
+```json
+{
+  "code": "123456",
+  "device_name": "My Android Phone",
+  "platform": "Android"
+}
+```
+
+This is a development-only HTTP prototype. Use only on a trusted private network that you control. HTTP does not encrypt traffic, so the access token can be exposed to other devices able to observe the network. Do not use public Wi-Fi, port forwarding, or expose this server to the internet. Production LAN pairing must use TLS, owner approval, rate limiting, and network access controls.
+
 ## Safety defaults
-- Backend binds to loopback by default.
-- Do not expose it directly to the public internet.
-- Remote access must use authenticated, encrypted transport and explicit device pairing.
+- Backend binds to loopback by default in the quick-start command.
+- Pairing codes can only be generated locally on the host computer.
+- Pairing codes expire after five minutes and can be used once.
+- Access tokens are stored as hashes in SQLite; the raw token is returned only during pairing.
+- Do not expose the development HTTP server directly to the public internet.
 - Only install agents on devices you own or are authorized to administer.
 - Forensics features should preserve evidence integrity and record operator actions.
 
