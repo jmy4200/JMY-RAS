@@ -35,4 +35,15 @@ def init_db():
             details TEXT NOT NULL DEFAULT '{}',
             timestamp TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS sync_events (
+            event_id TEXT PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            note TEXT NOT NULL,
+            client_created_at TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            FOREIGN KEY(device_id) REFERENCES devices(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_sync_events_received
+            ON sync_events(received_at);
         """)
