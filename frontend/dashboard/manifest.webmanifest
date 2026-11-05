@@ -1,0 +1,19 @@
+{
+  "name": "JMY Remote Access System",
+  "short_name": "JMY-RAS",
+  "description": "Consent-based remote administration dashboard for authorized devices.",
+  "start_url": "/dashboard/",
+  "scope": "/dashboard/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0b1220",
+  "background_color": "#0b1220",
+  "icons": [
+    {
+      "src": "/dashboard/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
