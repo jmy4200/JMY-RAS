@@ -3,9 +3,9 @@
 Cross-platform, consent-based remote administration and digital forensics toolkit. Early development scaffold.
 
 ## Current status
-**v0.4.2 — Offline-first dashboard and LAN pairing.** The dashboard shell is cached for offline viewing, and operator notes can be queued locally then synchronized to the host when the authenticated connection returns. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
+**Dashboard/backend v0.4.2 + Linux host agent v0.1.0.** Offline-first dashboard, LAN pairing, and a separate authenticated read-only Kali/Linux host agent are available. The host agent reports system inventory over a private VPN interface. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
 
-## Goals
+## Linux host agent (v0.1.0)\n\nSee [host_agent/README.md](host_agent/README.md) for installation and private Tailscale/WireGuard network setup. The agent defaults to loopback, requires a private bearer token, and exposes read-only health/inventory endpoints. Bind it only to the host's VPN IP for remote access; never use `0.0.0.0` or public port forwarding.\n\n## Goals
 - Offline access on a shared LAN
 - Offline-first local notes with authenticated, idempotent synchronization
 - Secure remote access over private networking (e.g. WireGuard)
