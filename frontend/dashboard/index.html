@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1220"><meta name="description" content="JMY-RAS consent-based remote access dashboard"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="icon" href="/dashboard/assets/icon.svg" type="image/svg+xml"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="JMY-RAS"><title>JMY-RAS | Control Center</title>
-  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.4.1">
+  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.4.2">
 </head>
 <body>
   <aside class="sidebar">
     <div class="brand"><div class="brand-mark">J</div><div><strong>JMY-RAS</strong><small>REMOTE ACCESS SYSTEM</small></div></div>
     <nav><a class="active" href="#overview">◈ &nbsp; Overview</a><a href="#devices">▣ &nbsp; Devices</a><a href="#pairing">⌁ &nbsp; Pair a device</a><a href="#audit">≡ &nbsp; Audit & security</a></nav>
-    <div class="sidebar-foot"><span class="dot"></span> Local host dashboard<small>Build 0.4.0 · Developer preview</small></div>
+    <div class="sidebar-foot"><span class="dot"></span> Local host dashboard<small>Build 0.4.2 · Offline-first preview</small></div>
   </aside>
   <main>
     <header><div><span class="eyebrow">SYSTEM CONSOLE</span><h1>Control Center</h1><p>Monitor your host and manage trusted device pairing.</p></div><div class="status-pill"><span class="dot"></span><span id="statusText">Connecting…</span></div></header>
@@ -42,10 +42,17 @@
         <div id="deviceList" class="empty">Authenticate with a paired device token to load device inventory.</div>
       </article>
     </section>
+    <section class="panel" id="offline"><div class="panel-head"><div><span class="eyebrow">OFFLINE-FIRST WORKSPACE</span><h2>Offline notes & sync</h2></div><span class="tag" id="connectionState">Checking connection…</span></div>
+      <p class="muted">Write operational notes without a connection. They stay on this browser until the host is reachable and an authenticated sync succeeds.</p>
+      <form id="offlineNoteForm"><label for="offlineNote">New local note (maximum 500 characters)</label><input id="offlineNote" maxlength="500" placeholder="Example: Checked host status at site A" required><button class="primary" type="submit">Save note on this device</button></form>
+      <div class="panel-head"><strong id="queueCount">0 notes waiting to sync</strong><button class="secondary" id="syncNow" type="button">↻ Sync now</button></div>
+      <div id="offlineNotes" class="empty">No local notes yet.</div>
+      <p class="muted" id="syncMessage" aria-live="polite">Local notes are stored in this browser, not on the server, until sync completes.</p>
+    </section>
     <section class="panel" id="audit"><div class="panel-head"><div><span class="eyebrow">SECURITY & TRANSPARENCY</span><h2>Security status</h2></div><span class="tag warning">DEVELOPMENT MODE</span></div>
       <div class="security-list"><div><span class="icon">✓</span><div><strong>Single-use pairing</strong><small>Pairing code expires after 5 minutes.</small></div></div><div><span class="icon">✓</span><div><strong>Token hashing</strong><small>Server stores a hash instead of the bearer token.</small></div></div><div><span class="icon">!</span><div><strong>Transport encryption not configured</strong><small>Do not use on public or untrusted networks.</small></div></div><div><span class="icon">!</span><div><strong>Remote control is not enabled</strong><small>This release is dashboard + pairing foundation only.</small></div></div></div>
     </section>
     <footer>JMY-RAS · Consent-based remote administration & digital forensics <span>Made for authorized systems only.</span></footer>
   </main>
-  <script src="/dashboard/assets/app.js?v=0.4.1"></script>
+  <script src="/dashboard/assets/app.js?v=0.4.2"></script>
 </body></html>
