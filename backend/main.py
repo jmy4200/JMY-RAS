@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 import platform
 import socket
+from pathlib import Path
 
 import psutil
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .db import init_db, connect
@@ -121,3 +123,8 @@ def recent_audit(device=Depends(current_device)):
             "SELECT event,device_id,details,timestamp FROM audit_events ORDER BY id DESC LIMIT 100"
         ).fetchall()
     return {"events": [dict(row) for row in rows]}
+
+
+# Browser dashboard: static assets; API endpoints retain their own auth rules.
+DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dashboard"
+app.mount("/dashboard", StaticFiles(directory=DASHBOARD_DIR, html=True), name="dashboard")
