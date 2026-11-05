@@ -1,4 +1,4 @@
-const CACHE_NAME = "jmy-ras-dashboard-v1";
+const CACHE_NAME = "jmy-ras-dashboard-v2";
 const APP_SHELL = [
   "/dashboard/",
   "/dashboard/index.html",
