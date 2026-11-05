@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1220"><meta name="description" content="JMY-RAS consent-based remote access dashboard"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="icon" href="/dashboard/assets/icon.svg" type="image/svg+xml"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="JMY-RAS"><title>JMY-RAS | Control Center</title>
-  <link rel="stylesheet" href="/dashboard/assets/style.css">
+  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.4.1">
 </head>
 <body>
   <aside class="sidebar">
@@ -38,7 +38,7 @@
         <div id="claimResult" class="code-box hidden" aria-live="polite"></div>
       </article>
       <article class="panel" id="devices"><div class="panel-head"><div><span class="eyebrow">TRUSTED ENDPOINTS</span><h2>Registered devices</h2></div><button class="secondary" id="refreshDevices">↻ Refresh</button></div>
-        <label for="token">Host access token (optional for device list)</label><div class="token-row"><input id="token" type="password" placeholder="Paste paired device bearer token"><button class="secondary" id="saveToken">Use token</button></div>
+        <label for="token">Paired device access token</label><p class="muted">This browser keeps the token for the current tab session, including after a page refresh.</p><div class="token-row"><input id="token" type="password" autocomplete="off" placeholder="Paste paired device bearer token"><button class="secondary" id="saveToken" type="button">Use token</button><button class="secondary" id="clearToken" type="button">Forget</button></div>
         <div id="deviceList" class="empty">Authenticate with a paired device token to load device inventory.</div>
       </article>
     </section>
@@ -47,5 +47,5 @@
     </section>
     <footer>JMY-RAS · Consent-based remote administration & digital forensics <span>Made for authorized systems only.</span></footer>
   </main>
-  <script src="/dashboard/assets/app.js"></script>
+  <script src="/dashboard/assets/app.js?v=0.4.1"></script>
 </body></html>
