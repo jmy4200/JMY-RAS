@@ -14,7 +14,7 @@ def test_home(client):
     response = client.get("/")
     assert response.status_code == 200
     assert response.json()["system"] == "JMY-RAS"
-    assert response.json()["version"] == "0.3.0"
+    assert response.json()["version"] == "0.4.2"
 
 
 def test_health(client):
@@ -54,6 +54,16 @@ def test_pairing_and_authenticated_routes(client):
     assert client.get("/api/devices/me", headers=headers).status_code == 200
     assert client.get("/api/devices", headers=headers).status_code == 200
     assert client.get("/api/audit/recent", headers=headers).status_code == 200
+    sync_body = {"events": [{"event_id": "123e4567-e89b-12d3-a456-426614174000", "event_type": "operator_note", "note": "Offline check completed", "client_created_at": "2026-11-05T10:00:00+00:00"}]}
+    synced = client.post("/api/sync/events", json=sync_body, headers=headers)
+    assert synced.status_code == 200
+    assert synced.json()["accepted"] == 1
+    duplicate = client.post("/api/sync/events", json=sync_body, headers=headers)
+    assert duplicate.status_code == 200
+    assert duplicate.json()["duplicates"] == 1
+    listed = client.get("/api/sync/events", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()["events"][0]["note"] == "Offline check completed"
 
     second_claim = client.post("/api/pairing/claim", json={
         "code": code, "device_name": "another-device", "platform": "Linux"
@@ -69,6 +79,7 @@ def test_remote_client_cannot_generate_pairing_code():
 
 def test_protected_endpoint_rejects_missing_token(client):
     assert client.get("/api/devices/me").status_code == 401
+    assert client.post("/api/sync/events", json={"events": []}).status_code == 401
 
 
 def test_dashboard_is_served(client):
