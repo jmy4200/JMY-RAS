@@ -9,6 +9,8 @@ def test_dashboard_page_serves_html():
     assert response.status_code == 200
     assert "JMY-RAS" in response.text
     assert "Control Center" in response.text
+    assert "Linux Host Agent" in response.text
+    assert 'id="refreshHostAgent"' in response.text
 
 
 def test_dashboard_assets_are_served():
@@ -19,3 +21,5 @@ def test_dashboard_assets_are_served():
     assert "--bg" in css.text
     assert js.status_code == 200
     assert "api/system/info" in js.text
+    assert "api/host-agent/health" in js.text
+    assert "api/host-agent/host" in js.text
