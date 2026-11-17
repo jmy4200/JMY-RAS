@@ -87,7 +87,7 @@ def test_dashboard_is_served(client):
     response = client.get("/dashboard/")
     assert response.status_code == 200
     assert "JMY-RAS" in response.text
-    assert 'app.js?v=0.4.2' in response.text
+    assert 'app.js?v=0.5.0' in response.text
 
 
 def test_dashboard_script_contains_session_token_restore(client):
