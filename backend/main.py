@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from .db import init_db, connect
 from .network import get_lan_addresses
 from .security import create_pairing_code, pair_device, authenticate_token
+from .host_agent_client import fetch_host_agent, HostAgentUnavailable
 
 app = FastAPI(
     title="JMY Remote Access System",
@@ -95,6 +96,24 @@ def lan_info():
         "addresses": get_lan_addresses(),
         "transport": "HTTP (development only; use encrypted transport before production)",
     }
+
+
+@app.get("/api/host-agent/health", tags=["host agent"])
+def host_agent_health(device=Depends(current_device)):
+    """Return authenticated health status from the configured local host agent."""
+    try:
+        return fetch_host_agent("/health")
+    except HostAgentUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/host-agent/host", tags=["host agent"])
+def host_agent_inventory(device=Depends(current_device)):
+    """Return read-only host inventory from the configured Linux host agent."""
+    try:
+        return fetch_host_agent("/v1/host")
+    except HostAgentUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/api/pairing/code", tags=["pairing"])
