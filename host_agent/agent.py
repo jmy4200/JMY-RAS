@@ -2,12 +2,13 @@
 """JMY-RAS Linux host agent: read-only inventory over an authenticated private interface.
 
 This first release deliberately does not execute shell commands, capture the screen,
-or inject keyboard/mouse input. Bind it only to a trusted VPN interface.
+or inject keyboard/mouse input. Bind it only to loopback or an assigned Tailscale IPv4 address.
 """
 from __future__ import annotations
 
 import argparse
 import hmac
+import ipaddress
 import json
 import os
 import platform
@@ -20,6 +21,30 @@ from pathlib import Path
 import psutil
 
 APP_VERSION = "0.1.0"
+TAILSCALE_IPV4_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+
+
+def validate_bind_address(bind_ip: str) -> None:
+    """Allow loopback, or an IPv4 address assigned to the Tailscale interface."""
+    try:
+        address = ipaddress.ip_address(bind_ip)
+    except ValueError as exc:
+        raise ValueError("Bind address must be a valid IP address") from exc
+
+    if not isinstance(address, ipaddress.IPv4Address):
+        raise ValueError("Only IPv4 bind addresses are supported")
+    if address.is_loopback:
+        return
+    if address not in TAILSCALE_IPV4_NETWORK:
+        raise ValueError("Remote binding is allowed only on a Tailscale IPv4 address (100.64.0.0/10)")
+
+    tailscale_addresses = {
+        item.address
+        for item in psutil.net_if_addrs().get("tailscale0", [])
+        if item.family == socket.AF_INET
+    }
+    if str(address) not in tailscale_addresses:
+        raise ValueError("The requested address is not assigned to the local tailscale0 interface")
 
 
 def token_path() -> Path:
@@ -127,11 +152,15 @@ def make_handler(token: str):
 def main():
     parser = argparse.ArgumentParser(description="JMY-RAS Kali/Linux host agent (read-only)")
     parser.add_argument("--bind", default="127.0.0.1",
-                        help="IP address to bind; use the host's Tailscale/WireGuard IP, not 0.0.0.0")
+                        help="127.0.0.1 or the assigned Tailscale IPv4 address; wildcard binds are rejected")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
+    try:
+        validate_bind_address(args.bind)
+    except ValueError as error:
+        parser.error(str(error))
 
     token = load_or_create_token()
     server = ThreadingHTTPServer((args.bind, args.port), make_handler(token))
