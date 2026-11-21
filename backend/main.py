@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from .db import init_db, connect
 from .network import get_lan_addresses
-from .security import create_pairing_code, pair_device, authenticate_token
+from .security import create_pairing_code, pair_device, authenticate_token, revoke_device
 from .host_agent_client import fetch_host_agent, HostAgentUnavailable
 
 app = FastAPI(
@@ -45,10 +45,11 @@ class OfflineSyncBatch(BaseModel):
 
 
 def current_device(authorization: str | None = Header(default=None)):
-    if not authorization or not authorization.lower().startswith("bearer "):
+    parts = authorization.strip().split() if authorization else []
+    if len(parts) != 2 or parts[0].casefold() != "bearer":
         raise HTTPException(status_code=401, detail="Bearer token required")
-    token = authorization.split(" ", 1)[1].strip()
-    device = authenticate_token(token)
+
+    device = authenticate_token(parts[1])
     if not device:
         raise HTTPException(status_code=401, detail="Invalid access token")
     return device
@@ -109,7 +110,7 @@ def host_agent_health(device=Depends(current_device)):
 
 @app.get("/api/host-agent/host", tags=["host agent"])
 def host_agent_inventory(device=Depends(current_device)):
-    """Return read-only host inventory from the configured Linux host agent."""
+    """Return read-only host inventory from the configured local host agent."""
     try:
         return fetch_host_agent("/v1/host")
     except HostAgentUnavailable as exc:
@@ -135,6 +136,14 @@ def claim_pairing(request: PairRequest):
 @app.get("/api/devices/me", tags=["devices"])
 def my_device(device=Depends(current_device)):
     return device
+
+
+@app.post("/api/devices/me/revoke", tags=["devices"])
+def revoke_my_device(device=Depends(current_device)):
+    """Revoke only the credential used for this request; retain its audit history."""
+    if not revoke_device(device["id"]):
+        raise HTTPException(status_code=409, detail="Device is already revoked")
+    return {"device_id": device["id"], "revoked": True}
 
 
 @app.get("/api/devices", tags=["devices"])
