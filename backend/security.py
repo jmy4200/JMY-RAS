@@ -33,21 +33,34 @@ def pair_device(code: str, name: str, platform_name: str):
     token = secrets.token_urlsafe(32)
     device_id = str(uuid.uuid4())
     with connect() as conn:
-        row = conn.execute(
-            "SELECT expires_at, used FROM pairing_codes WHERE code_hash=?",
-            (code_digest,),
-        ).fetchone()
-        if not row or row["used"] or row["expires_at"] < time.time():
+        # Claim the code with one conditional write. SQLite serializes writers,
+        # so concurrent requests cannot both change the same unused code.
+        claimed = conn.execute(
+            """UPDATE pairing_codes
+               SET used=1
+               WHERE code_hash=? AND used=0 AND expires_at>=?""",
+            (code_digest, time.time()),
+        )
+        if claimed.rowcount != 1:
             return None
-        conn.execute("UPDATE pairing_codes SET used=1 WHERE code_hash=?", (code_digest,))
+
+        created_at = now_iso()
         conn.execute(
-            """INSERT INTO devices(id,name,platform,token_hash,created_at,last_seen)
-               VALUES(?,?,?,?,?,?)""",
-            (device_id, name[:80], platform_name[:80], hash_secret(token), now_iso(), now_iso()),
+            """INSERT INTO devices
+               (id,name,platform,token_hash,created_at,last_seen,is_active)
+               VALUES(?,?,?,?,?,?,1)""",
+            (
+                device_id,
+                name[:80],
+                platform_name[:80],
+                hash_secret(token),
+                created_at,
+                created_at,
+            ),
         )
         conn.execute(
             "INSERT INTO audit_events(event,device_id,details,timestamp) VALUES(?,?,?,?)",
-            ("device_paired", device_id, '{"result":"success"}', now_iso()),
+            ("device_paired", device_id, '{"result":"success"}', created_at),
         )
     return {"device_id": device_id, "access_token": token, "token_type": "bearer"}
 
@@ -56,7 +69,9 @@ def authenticate_token(token: str):
     digest = hash_secret(token)
     with connect() as conn:
         row = conn.execute(
-            "SELECT id,name,platform FROM devices WHERE token_hash=?", (digest,)
+            """SELECT id,name,platform FROM devices
+               WHERE token_hash=? AND is_active=1""",
+            (digest,),
         ).fetchone()
         if not row:
             return None
@@ -66,3 +81,20 @@ def authenticate_token(token: str):
             ("authenticated_request", row["id"], "{}", now_iso()),
         )
         return dict(row)
+
+
+def revoke_device(device_id: str) -> bool:
+    """Revoke one device credential without deleting its audit history."""
+    timestamp = now_iso()
+    with connect() as conn:
+        result = conn.execute(
+            "UPDATE devices SET is_active=0 WHERE id=? AND is_active=1",
+            (device_id,),
+        )
+        if result.rowcount != 1:
+            return False
+        conn.execute(
+            "INSERT INTO audit_events(event,device_id,details,timestamp) VALUES(?,?,?,?)",
+            ("device_revoked", device_id, '{"scope":"self"}', timestamp),
+        )
+    return True
