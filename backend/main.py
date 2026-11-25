@@ -28,8 +28,8 @@ from .owner_auth import (
     create_owner_session,
     authenticate_owner_session,
     revoke_owner_session,
-    owner_login_limit,
-    record_owner_login_failure,
+    consume_owner_login_attempt,
+    clear_owner_login_attempts,
 )
 from .owner_password import verify_password
 
@@ -189,7 +189,7 @@ def owner_login(payload: OwnerLoginRequest, request: Request, response: Response
         )
 
     client_host = request.client.host if request.client else "unknown"
-    limited, retry_after = owner_login_limit(client_host)
+    limited, retry_after = consume_owner_login_attempt(client_host)
     if limited:
         raise HTTPException(
             status_code=429,
@@ -198,9 +198,9 @@ def owner_login(payload: OwnerLoginRequest, request: Request, response: Response
         )
 
     if not verify_password(payload.password, password_hash):
-        record_owner_login_failure(client_host)
         raise HTTPException(status_code=401, detail="Invalid owner credentials")
 
+    clear_owner_login_attempts(client_host)
     token, expires_at = create_owner_session()
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
