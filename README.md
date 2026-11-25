@@ -92,7 +92,7 @@ Owner API:
 
 Owner login is limited to five failed attempts per source address in a 15-minute window. Owner session tokens are stored as hashes, expire after eight hours, and are returned with no-store cache headers. Device tokens cannot access owner endpoints. Keep the owner password and session token private, and use HTTPS before operating over any network you do not fully trust.
 
-The dashboard does not yet include an owner login interface; these controls are currently available through the API documentation at `/docs`.
+The dashboard includes an Owner administration panel for sign-in, device inventory, revocation, and recent audit review. The same protected endpoints are documented at `/docs`.
 
 ## Roadmap
 1. Offline-first dashboard, queued notes, and authenticated synchronization
