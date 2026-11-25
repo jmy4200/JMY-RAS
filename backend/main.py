@@ -6,13 +6,19 @@ from pathlib import Path
 from typing import Literal
 
 import psutil
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .db import init_db, connect
 from .network import get_lan_addresses
-from .security import create_pairing_code, pair_device, authenticate_token, revoke_device
+from .security import (
+    create_pairing_code,
+    pair_device,
+    authenticate_token,
+    revoke_device,
+    check_pairing_rate_limit,
+)
 from .host_agent_client import fetch_host_agent, HostAgentUnavailable
 
 app = FastAPI(
@@ -28,7 +34,7 @@ def startup():
 
 
 class PairRequest(BaseModel):
-    code: str = Field(pattern=r"^\d{6}$")
+    code: str = Field(pattern=r"^\\d{6}$")
     device_name: str = Field(min_length=1, max_length=80)
     platform: str = Field(min_length=1, max_length=80)
 
@@ -110,7 +116,7 @@ def host_agent_health(device=Depends(current_device)):
 
 @app.get("/api/host-agent/host", tags=["host agent"])
 def host_agent_inventory(device=Depends(current_device)):
-    """Return read-only host inventory from the configured local host agent."""
+    """Return read-only host inventory from the configured Linux host agent."""
     try:
         return fetch_host_agent("/v1/host")
     except HostAgentUnavailable as exc:
@@ -126,10 +132,23 @@ def new_pairing_code(request: Request):
 
 
 @app.post("/api/pairing/claim", tags=["pairing"])
-def claim_pairing(request: PairRequest):
-    result = pair_device(request.code, request.device_name, request.platform)
+def claim_pairing(payload: PairRequest, request: Request, response: Response):
+    client_host = request.client.host if request.client else "unknown"
+    limited, retry_after = check_pairing_rate_limit(client_host)
+    if limited:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many pairing attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    result = pair_device(payload.code, payload.device_name, payload.platform)
     if not result:
         raise HTTPException(status_code=400, detail="Pairing code invalid, expired, or already used")
+
+    # Pairing responses contain a bearer credential and must not be cached.
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     return result
 
 
@@ -148,9 +167,12 @@ def revoke_my_device(device=Depends(current_device)):
 
 @app.get("/api/devices", tags=["devices"])
 def list_devices(device=Depends(current_device)):
+    """Return only the authenticated device; cross-device administration is not enabled."""
     with connect() as conn:
         rows = conn.execute(
-            "SELECT id,name,platform,created_at,last_seen FROM devices ORDER BY created_at"
+            """SELECT id,name,platform,created_at,last_seen
+               FROM devices WHERE id=? AND is_active=1""",
+            (device["id"],),
         ).fetchall()
     return {"devices": [dict(row) for row in rows]}
 
@@ -198,9 +220,12 @@ def list_synced_events(device=Depends(current_device)):
 
 @app.get("/api/audit/recent", tags=["audit"])
 def recent_audit(device=Depends(current_device)):
+    """Expose only this device's audit events, not other devices' activity."""
     with connect() as conn:
         rows = conn.execute(
-            "SELECT event,device_id,details,timestamp FROM audit_events ORDER BY id DESC LIMIT 100"
+            """SELECT event,device_id,details,timestamp
+               FROM audit_events WHERE device_id=? ORDER BY id DESC LIMIT 100""",
+            (device["id"],),
         ).fetchall()
     return {"events": [dict(row) for row in rows]}
 
