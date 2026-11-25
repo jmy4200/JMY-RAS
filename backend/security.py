@@ -1,4 +1,5 @@
 import hashlib
+import json
 import secrets
 import time
 import uuid
@@ -128,8 +129,8 @@ def authenticate_token(token: str):
         return dict(row)
 
 
-def revoke_device(device_id: str) -> bool:
-    """Revoke one device credential without deleting its audit history."""
+def revoke_device(device_id: str, actor: str = "device", actor_id: str | None = None) -> bool:
+    """Revoke a device credential and record who initiated the action."""
     timestamp = now_iso()
     with connect() as conn:
         result = conn.execute(
@@ -140,6 +141,6 @@ def revoke_device(device_id: str) -> bool:
             return False
         conn.execute(
             "INSERT INTO audit_events(event,device_id,details,timestamp) VALUES(?,?,?,?)",
-            ("device_revoked", device_id, '{"scope":"self"}', timestamp),
+            ("device_revoked", device_id, json.dumps({"actor": actor, "actor_id": actor_id}), timestamp),
         )
     return True
