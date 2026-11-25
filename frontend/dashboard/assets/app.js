@@ -57,6 +57,93 @@ function setConnectionLabel() {
   $("connectionState").textContent = navigator.onLine ? "Network available" : "Offline";
 }
 
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes, unit = 0;
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+  return value.toFixed(unit === 0 ? 0 : 1) + " " + units[unit];
+}
+
+function setHostAgentStatus(label, state = "warning") {
+  const status = $("hostAgentStatus");
+  status.textContent = label;
+  status.className = "tag " + state;
+}
+
+function clearHostAgentDetails() {
+  ["agentHostname", "agentOs", "agentKernel", "agentArchitecture",
+   "agentCpu", "agentMemory", "agentVersion"].forEach(id => { $(id).textContent = "—"; });
+  $("hostAgentCapabilities").textContent = "Waiting for authenticated host data.";
+  $("hostAgentSecurity").textContent = "Security details will appear after authentication.";
+}
+
+async function refreshHostAgent() {
+  const button = $("refreshHostAgent");
+  const token = $("token").value.trim();
+  if (!token) {
+    setHostAgentStatus("Authentication required");
+    $("hostAgentMessage").textContent = "Enter a paired device bearer token in This device, then select “Use token”.";
+    clearHostAgentDetails();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Loading…";
+  $("hostAgentMessage").textContent = "Requesting authenticated health and inventory from the host agent…";
+  try {
+    const headers = { Authorization: "Bearer " + token };
+    const [health, host] = await Promise.all([
+      api("/api/host-agent/health", { headers }),
+      api("/api/host-agent/host", { headers })
+    ]);
+
+    $("agentHostname").textContent = host.hostname || "Unknown";
+    $("agentOs").textContent = host.distribution || host.operating_system || "Unknown";
+    $("agentKernel").textContent = host.kernel || "Unknown";
+    $("agentArchitecture").textContent = host.architecture || "Unknown";
+    $("agentCpu").textContent = Number.isFinite(host.cpu_usage_percent) ? host.cpu_usage_percent.toFixed(1) + "%" : "—";
+    $("agentMemory").textContent = Number.isFinite(host.memory_used_percent)
+      ? host.memory_used_percent.toFixed(1) + "% · " + formatBytes(host.memory_total_bytes)
+      : "—";
+    $("agentVersion").textContent = host.agent_version || health.agent_version || "Unknown";
+
+    const capabilities = host.capabilities || {};
+    const capabilityNames = {
+      host_inventory: "Host inventory",
+      screen_view: "Screen viewing",
+      keyboard_mouse_control: "Keyboard and mouse control",
+      terminal: "Remote terminal",
+      file_transfer: "File transfer"
+    };
+    const capabilityList = $("hostAgentCapabilities");
+    capabilityList.textContent = "";
+    Object.entries(capabilityNames).forEach(([key, label]) => {
+      const item = document.createElement("span");
+      item.className = "capability " + (capabilities[key] ? "enabled" : "disabled");
+      item.textContent = (capabilities[key] ? "✓ " : "— ") + label;
+      capabilityList.append(item);
+    });
+
+    const security = host.security || {};
+    $("hostAgentSecurity").textContent =
+      "Authentication: " + (security.authentication || "not reported") +
+      " · Transport: " + (security.transport || "not reported") +
+      " · Remote command execution: " + (security.remote_command_execution ? "enabled" : "disabled");
+    setHostAgentStatus(health.status === "healthy" ? "Connected" : "Degraded",
+      health.status === "healthy" ? "" : "warning");
+    $("hostAgentMessage").textContent = "Host inventory updated successfully.";
+  } catch (error) {
+    const invalidToken = error.message === "Invalid access token" || error.message === "Bearer token required";
+    setHostAgentStatus(invalidToken ? "Authentication failed" : "Agent unavailable");
+    $("hostAgentMessage").textContent = "Could not retrieve host information: " + error.message;
+    clearHostAgentDetails();
+  } finally {
+    button.disabled = false;
+    button.textContent = "↻ Refresh";
+  }
+}
+
 async function refresh() {
   try {
     await api("/api/health");
@@ -115,6 +202,7 @@ $("claimForm").addEventListener("submit", async event => {
     output.textContent = "Phone paired successfully. Your token is saved for this browser tab session. Keep it private.";
     output.classList.remove("hidden");
     await devices();
+    await refreshHostAgent();
     await syncQueue();
   } catch (error) {
     output.textContent = "Pairing failed: " + error.message;
@@ -128,7 +216,7 @@ $("claimForm").addEventListener("submit", async event => {
 async function devices() {
   const token = $("token").value.trim();
   if (!token) {
-    $("deviceList").textContent = "Enter a paired device bearer token to load the protected device list.";
+    $("deviceList").textContent = "Enter a paired device bearer token to view this device.";
     return;
   }
   try {
@@ -137,7 +225,7 @@ async function devices() {
     });
     $("deviceList").textContent = "";
     if (!result.devices.length) {
-      $("deviceList").textContent = "No paired devices registered yet.";
+      $("deviceList").textContent = "No active device record was returned.";
       return;
     }
     result.devices.forEach(device => {
@@ -151,7 +239,7 @@ async function devices() {
       details.append(name, meta);
       const tag = document.createElement("span");
       tag.className = "tag";
-      tag.textContent = "REGISTERED";
+      tag.textContent = "THIS DEVICE";
       row.append(details, tag);
       $("deviceList").append(row);
     });
@@ -216,13 +304,18 @@ $("saveToken").onclick = () => {
   const token = $("token").value.trim();
   if (token) sessionStorage.setItem(TOKEN_KEY, token);
   devices();
+  refreshHostAgent();
   syncQueue();
 };
 $("clearToken").onclick = () => {
   setToken("");
   $("deviceList").textContent = "Token cleared from this browser tab session.";
+  setHostAgentStatus("Authentication required");
+  $("hostAgentMessage").textContent = "Enter a paired device bearer token to load host information.";
+  clearHostAgentDetails();
 };
 $("refreshDevices").onclick = devices;
+$("refreshHostAgent").onclick = refreshHostAgent;
 $("syncNow").onclick = syncQueue;
 window.addEventListener("online", () => { setConnectionLabel(); refresh(); syncQueue(); });
 window.addEventListener("offline", setConnectionLabel);
@@ -234,9 +327,10 @@ setConnectionLabel();
 refresh();
 if (savedToken) {
   devices();
+  refreshHostAgent();
   syncQueue();
 }
-setInterval(() => { refresh(); syncQueue(); }, 30000);
+setInterval(() => { refresh(); if ($("token").value.trim()) refreshHostAgent(); syncQueue(); }, 30000);
 
 if ("serviceWorker" in navigator &&
     (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {

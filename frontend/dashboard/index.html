@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1220"><meta name="description" content="JMY-RAS consent-based remote access dashboard"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="icon" href="/dashboard/assets/icon.svg" type="image/svg+xml"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="JMY-RAS"><title>JMY-RAS | Control Center</title>
-  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.4.2">
+  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.5.0">
 </head>
 <body>
   <aside class="sidebar">
     <div class="brand"><div class="brand-mark">J</div><div><strong>JMY-RAS</strong><small>REMOTE ACCESS SYSTEM</small></div></div>
-    <nav><a class="active" href="#overview">◈ &nbsp; Overview</a><a href="#devices">▣ &nbsp; Devices</a><a href="#pairing">⌁ &nbsp; Pair a device</a><a href="#offline">◷ &nbsp; Offline notes</a><a href="#audit">≡ &nbsp; Audit & security</a></nav>
-    <div class="sidebar-foot"><span class="dot"></span> Local host dashboard<small>Build 0.4.2 · Offline-first preview</small></div>
+    <nav><a class="active" href="#overview">◈ &nbsp; Overview</a><a href="#devices">▣ &nbsp; Devices</a><a href="#pairing">⌁ &nbsp; Pair a device</a><a href="#host-agent">▤ &nbsp; Host Agent</a><a href="#offline">◷ &nbsp; Offline notes</a><a href="#audit">≡ &nbsp; Audit & security</a></nav>
+    <div class="sidebar-foot"><span class="dot"></span> Local host dashboard<small>Build 0.5.0 · Host monitoring preview</small></div>
   </aside>
   <main>
     <header><div><span class="eyebrow">SYSTEM CONSOLE</span><h1>Control Center</h1><p>Monitor your host and manage trusted device pairing.</p></div><div class="status-pill"><span class="dot"></span><span id="statusText">Connecting…</span></div></header>
@@ -18,6 +18,23 @@
       <article class="stat"><div class="stat-label">OPERATING SYSTEM</div><div class="stat-value" id="os">—</div><div class="stat-note" id="host">Host information</div></article>
       <article class="stat"><div class="stat-label">CPU LOAD</div><div class="stat-value" id="cpu">—</div><div class="meter"><i id="cpuBar"></i></div></article>
       <article class="stat"><div class="stat-label">MEMORY USED</div><div class="stat-value" id="memory">—</div><div class="meter"><i id="memBar"></i></div></article>
+    </section>
+    <section class="panel host-agent-panel" id="host-agent">
+      <div class="panel-head"><div><span class="eyebrow">LIVE HOST MONITORING</span><h2>Linux Host Agent</h2></div><div class="agent-actions"><span class="tag warning" id="hostAgentStatus">Authentication required</span><button class="secondary" id="refreshHostAgent" type="button">↻ Refresh</button></div></div>
+      <p class="muted" id="hostAgentMessage">Enter a paired device bearer token in This device, then select “Use token” to load authenticated host information.</p>
+      <div class="agent-metrics">
+        <div><span>HOSTNAME</span><strong id="agentHostname">—</strong></div>
+        <div><span>OPERATING SYSTEM</span><strong id="agentOs">—</strong></div>
+        <div><span>KERNEL</span><strong id="agentKernel">—</strong></div>
+        <div><span>ARCHITECTURE</span><strong id="agentArchitecture">—</strong></div>
+        <div><span>CPU USAGE</span><strong id="agentCpu">—</strong></div>
+        <div><span>MEMORY USED</span><strong id="agentMemory">—</strong></div>
+        <div><span>AGENT VERSION</span><strong id="agentVersion">—</strong></div>
+      </div>
+      <div class="agent-details">
+        <div><h3>Available capabilities</h3><div id="hostAgentCapabilities" class="capability-list">Waiting for authenticated host data.</div></div>
+        <div><h3>Security posture</h3><p id="hostAgentSecurity" class="muted">Security details will appear after authentication.</p></div>
+      </div>
     </section>
     <section class="grid">
       <article class="panel" id="pairing"><div class="panel-head"><div><span class="eyebrow">SECURE ENROLLMENT</span><h2>Pair a new device</h2></div><span class="tag">5 MIN EXPIRY</span></div>
@@ -37,9 +54,9 @@
         </form>
         <div id="claimResult" class="code-box hidden" aria-live="polite"></div>
       </article>
-      <article class="panel" id="devices"><div class="panel-head"><div><span class="eyebrow">TRUSTED ENDPOINTS</span><h2>Registered devices</h2></div><button class="secondary" id="refreshDevices">↻ Refresh</button></div>
+      <article class="panel" id="devices"><div class="panel-head"><div><span class="eyebrow">CURRENT SESSION</span><h2>This device</h2></div><button class="secondary" id="refreshDevices">↻ Refresh</button></div>
         <label for="token">Paired device access token</label><p class="muted">This browser keeps the token for the current tab session, including after a page refresh.</p><div class="token-row"><input id="token" type="password" autocomplete="off" placeholder="Paste paired device bearer token"><button class="secondary" id="saveToken" type="button">Use token</button><button class="secondary" id="clearToken" type="button">Forget</button></div>
-        <div id="deviceList" class="empty">Authenticate with a paired device token to load device inventory.</div>
+        <div id="deviceList" class="empty">Authenticate with a paired device token to view this device only.</div>
       </article>
     </section>
     <section class="panel" id="offline"><div class="panel-head"><div><span class="eyebrow">OFFLINE-FIRST WORKSPACE</span><h2>Offline notes & sync</h2></div><span class="tag" id="connectionState">Checking connection…</span></div>
@@ -50,9 +67,9 @@
       <p class="muted" id="syncMessage" aria-live="polite">Local notes are stored in this browser, not on the server, until sync completes.</p>
     </section>
     <section class="panel" id="audit"><div class="panel-head"><div><span class="eyebrow">SECURITY & TRANSPARENCY</span><h2>Security status</h2></div><span class="tag warning">DEVELOPMENT MODE</span></div>
-      <div class="security-list"><div><span class="icon">✓</span><div><strong>Single-use pairing</strong><small>Pairing code expires after 5 minutes.</small></div></div><div><span class="icon">✓</span><div><strong>Token hashing</strong><small>Server stores a hash instead of the bearer token.</small></div></div><div><span class="icon">!</span><div><strong>Transport encryption not configured</strong><small>Do not use on public or untrusted networks.</small></div></div><div><span class="icon">!</span><div><strong>Remote control is not enabled</strong><small>This release is dashboard + pairing foundation only.</small></div></div></div>
+      <div class="security-list"><div><span class="icon">✓</span><div><strong>Rate-limited pairing</strong><small>One-time codes expire after 5 minutes; each source is limited to 10 claims per 5-minute window.</small></div></div><div><span class="icon">✓</span><div><strong>Device data isolation</strong><small>Each paired device can view only its own inventory and audit events.</small></div></div><div><span class="icon">!</span><div><strong>Transport encryption not configured</strong><small>Do not use on public or untrusted networks.</small></div></div><div><span class="icon">!</span><div><strong>Remote control is not enabled</strong><small>This release is dashboard + pairing foundation only.</small></div></div></div>
     </section>
     <footer>JMY-RAS · Consent-based remote administration & digital forensics <span>Made for authorized systems only.</span></footer>
   </main>
-  <script src="/dashboard/assets/app.js?v=0.4.2"></script>
+  <script src="/dashboard/assets/app.js?v=0.5.0"></script>
 </body></html>

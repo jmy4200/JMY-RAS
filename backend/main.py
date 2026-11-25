@@ -6,13 +6,19 @@ from pathlib import Path
 from typing import Literal
 
 import psutil
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .db import init_db, connect
 from .network import get_lan_addresses
-from .security import create_pairing_code, pair_device, authenticate_token
+from .security import (
+    create_pairing_code,
+    pair_device,
+    authenticate_token,
+    revoke_device,
+    check_pairing_rate_limit,
+)
 from .host_agent_client import fetch_host_agent, HostAgentUnavailable
 
 app = FastAPI(
@@ -45,10 +51,11 @@ class OfflineSyncBatch(BaseModel):
 
 
 def current_device(authorization: str | None = Header(default=None)):
-    if not authorization or not authorization.lower().startswith("bearer "):
+    parts = authorization.strip().split() if authorization else []
+    if len(parts) != 2 or parts[0].casefold() != "bearer":
         raise HTTPException(status_code=401, detail="Bearer token required")
-    token = authorization.split(" ", 1)[1].strip()
-    device = authenticate_token(token)
+
+    device = authenticate_token(parts[1])
     if not device:
         raise HTTPException(status_code=401, detail="Invalid access token")
     return device
@@ -125,10 +132,23 @@ def new_pairing_code(request: Request):
 
 
 @app.post("/api/pairing/claim", tags=["pairing"])
-def claim_pairing(request: PairRequest):
-    result = pair_device(request.code, request.device_name, request.platform)
+def claim_pairing(payload: PairRequest, request: Request, response: Response):
+    client_host = request.client.host if request.client else "unknown"
+    limited, retry_after = check_pairing_rate_limit(client_host)
+    if limited:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many pairing attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    result = pair_device(payload.code, payload.device_name, payload.platform)
     if not result:
         raise HTTPException(status_code=400, detail="Pairing code invalid, expired, or already used")
+
+    # Pairing responses contain a bearer credential and must not be cached.
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     return result
 
 
@@ -137,11 +157,22 @@ def my_device(device=Depends(current_device)):
     return device
 
 
+@app.post("/api/devices/me/revoke", tags=["devices"])
+def revoke_my_device(device=Depends(current_device)):
+    """Revoke only the credential used for this request; retain its audit history."""
+    if not revoke_device(device["id"]):
+        raise HTTPException(status_code=409, detail="Device is already revoked")
+    return {"device_id": device["id"], "revoked": True}
+
+
 @app.get("/api/devices", tags=["devices"])
 def list_devices(device=Depends(current_device)):
+    """Return only the authenticated device; cross-device administration is not enabled."""
     with connect() as conn:
         rows = conn.execute(
-            "SELECT id,name,platform,created_at,last_seen FROM devices ORDER BY created_at"
+            """SELECT id,name,platform,created_at,last_seen
+               FROM devices WHERE id=? AND is_active=1""",
+            (device["id"],),
         ).fetchall()
     return {"devices": [dict(row) for row in rows]}
 
@@ -189,9 +220,12 @@ def list_synced_events(device=Depends(current_device)):
 
 @app.get("/api/audit/recent", tags=["audit"])
 def recent_audit(device=Depends(current_device)):
+    """Expose only this device's audit events, not other devices' activity."""
     with connect() as conn:
         rows = conn.execute(
-            "SELECT event,device_id,details,timestamp FROM audit_events ORDER BY id DESC LIMIT 100"
+            """SELECT event,device_id,details,timestamp
+               FROM audit_events WHERE device_id=? ORDER BY id DESC LIMIT 100""",
+            (device["id"],),
         ).fetchall()
     return {"events": [dict(row) for row in rows]}
 

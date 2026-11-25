@@ -21,12 +21,18 @@ def init_db():
             platform TEXT NOT NULL,
             token_hash TEXT NOT NULL UNIQUE,
             created_at TEXT NOT NULL,
-            last_seen TEXT
+            last_seen TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))
         );
         CREATE TABLE IF NOT EXISTS pairing_codes (
             code_hash TEXT PRIMARY KEY,
             expires_at REAL NOT NULL,
             used INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS pairing_attempt_limits (
+            client_host TEXT PRIMARY KEY,
+            window_started REAL NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,4 +52,17 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_sync_events_received
             ON sync_events(received_at);
+        CREATE INDEX IF NOT EXISTS idx_audit_events_device_id
+            ON audit_events(device_id, id);
         """)
+
+        # Migrate databases created before device revocation was introduced.
+        device_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(devices)")
+        }
+        if "is_active" not in device_columns:
+            conn.execute(
+                """ALTER TABLE devices
+                   ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
+                   CHECK (is_active IN (0, 1))"""
+            )
