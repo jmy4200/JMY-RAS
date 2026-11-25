@@ -34,7 +34,7 @@ def startup():
 
 
 class PairRequest(BaseModel):
-    code: str = Field(pattern=r"^\\d{6}$")
+    code: str = Field(pattern=r"^\d{6}$")
     device_name: str = Field(min_length=1, max_length=80)
     platform: str = Field(min_length=1, max_length=80)
 
