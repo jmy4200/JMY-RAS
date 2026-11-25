@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1220"><meta name="description" content="JMY-RAS consent-based remote access dashboard"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="icon" href="/dashboard/assets/icon.svg" type="image/svg+xml"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="JMY-RAS"><title>JMY-RAS | Control Center</title>
-  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.5.0">
+  <link rel="stylesheet" href="/dashboard/assets/style.css?v=0.6.0">
 </head>
 <body>
   <aside class="sidebar">
@@ -59,6 +59,21 @@
         <div id="deviceList" class="empty">Authenticate with a paired device token to view this device only.</div>
       </article>
     </section>
+    <section class="panel" id="owner">
+      <div class="panel-head"><div><span class="eyebrow">OWNER CONTROL</span><h2>Owner administration</h2></div><span class="tag warning" id="ownerStatus">Not signed in</span></div>
+      <p class="muted">Sign in with the owner password configured on this host. Owner sessions expire after eight hours. Device credentials cannot access these controls.</p>
+      <form id="ownerLoginForm">
+        <label for="ownerPassword">Owner password</label>
+        <div class="token-row"><input id="ownerPassword" type="password" minlength="14" maxlength="256" autocomplete="current-password" placeholder="Enter owner password" required><button class="primary" id="ownerLoginButton" type="submit">Owner sign in</button></div>
+      </form>
+      <div id="ownerMessage" class="muted" aria-live="polite">Owner authentication is optional. Configure JMY_OWNER_PASSWORD_HASH to enable it.</div>
+      <div id="ownerAdminControls" class="hidden">
+        <div class="panel-head"><h3>All registered devices</h3><button class="secondary" id="ownerRefresh" type="button">↻ Refresh</button><button class="secondary" id="ownerLogout" type="button">Sign out</button></div>
+        <div id="ownerDeviceList" class="empty">Owner device inventory will appear after sign in.</div>
+        <div class="panel-head"><h3>Recent system audit</h3></div>
+        <div id="ownerAuditList" class="empty">System audit events will appear after sign in.</div>
+      </div>
+    </section>
     <section class="panel" id="offline"><div class="panel-head"><div><span class="eyebrow">OFFLINE-FIRST WORKSPACE</span><h2>Offline notes & sync</h2></div><span class="tag" id="connectionState">Checking connection…</span></div>
       <p class="muted">Write operational notes without a connection. They stay on this browser until the host is reachable and an authenticated sync succeeds.</p>
       <form id="offlineNoteForm"><label for="offlineNote">New local note (maximum 500 characters)</label><input id="offlineNote" maxlength="500" placeholder="Example: Checked host status at site A" required><button class="primary" type="submit">Save note on this device</button></form>
@@ -71,5 +86,5 @@
     </section>
     <footer>JMY-RAS · Consent-based remote administration & digital forensics <span>Made for authorized systems only.</span></footer>
   </main>
-  <script src="/dashboard/assets/app.js?v=0.5.0"></script>
+  <script src="/dashboard/assets/app.js?v=0.6.0"></script>
 </body></html>

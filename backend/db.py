@@ -34,6 +34,19 @@ def init_db():
             window_started REAL NOT NULL,
             attempts INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS owner_sessions (
+            id TEXT PRIMARY KEY,
+            token_hash TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            expires_at REAL NOT NULL,
+            last_seen TEXT,
+            revoked_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS owner_login_limits (
+            client_host TEXT PRIMARY KEY,
+            window_started REAL NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event TEXT NOT NULL,
