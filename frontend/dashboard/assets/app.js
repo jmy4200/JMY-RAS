@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 const TOKEN_KEY = "jmy_ras_session_token";
+const OWNER_TOKEN_KEY = "jmy_ras_owner_session_token";
 const QUEUE_KEY = "jmy_ras_offline_queue";
 
 async function api(path, options = {}) {
@@ -249,6 +250,155 @@ async function devices() {
   }
 }
 
+async function ownerRequest(path, options = {}) {
+  const token = sessionStorage.getItem(OWNER_TOKEN_KEY);
+  if (!token) throw new Error("Owner sign in required");
+  const headers = {
+    ...(options.headers || {}),
+    Authorization: "Bearer " + token
+  };
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) {
+    let message = "HTTP " + response.status;
+    try { message = (await response.json()).detail || message; } catch {}
+    if (response.status === 401) clearOwnerSession();
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+function setOwnerStatus(label, state = "warning") {
+  const status = $("ownerStatus");
+  status.textContent = label;
+  status.className = "tag " + state;
+}
+
+function clearOwnerSession(message = "Owner session ended. Sign in to manage devices.") {
+  sessionStorage.removeItem(OWNER_TOKEN_KEY);
+  $("ownerAdminControls").classList.add("hidden");
+  setOwnerStatus("Not signed in");
+  $("ownerMessage").textContent = message;
+}
+
+async function loadOwnerDevices() {
+  const result = await ownerRequest("/api/owner/devices");
+  const list = $("ownerDeviceList");
+  list.textContent = "";
+  if (!result.devices.length) {
+    list.textContent = "No devices have been paired yet.";
+    return;
+  }
+
+  result.devices.forEach(device => {
+    const row = document.createElement("div");
+    row.className = "device";
+    const detail = document.createElement("div");
+    const name = document.createElement("strong");
+    const meta = document.createElement("small");
+    name.textContent = device.name;
+    meta.textContent = device.platform + " · " + device.created_at;
+    detail.append(name, meta);
+    const status = document.createElement("span");
+    status.className = "tag " + (device.is_active ? "" : "warning");
+    status.textContent = device.is_active ? "ACTIVE" : "REVOKED";
+    row.append(detail, status);
+
+    if (device.is_active) {
+      const revoke = document.createElement("button");
+      revoke.type = "button";
+      revoke.className = "secondary";
+      revoke.textContent = "Revoke";
+      revoke.addEventListener("click", async () => {
+        if (!window.confirm("Revoke access for " + device.name + "?")) return;
+        revoke.disabled = true;
+        try {
+          await ownerRequest("/api/owner/devices/" + encodeURIComponent(device.id) + "/revoke", {
+            method: "POST"
+          });
+          $("ownerMessage").textContent = "Access revoked for " + device.name + ".";
+          await loadOwnerDevices();
+          await loadOwnerAudit();
+        } catch (error) {
+          $("ownerMessage").textContent = "Could not revoke device: " + error.message;
+          revoke.disabled = false;
+        }
+      });
+      row.append(revoke);
+    }
+    list.append(row);
+  });
+}
+
+async function loadOwnerAudit() {
+  const result = await ownerRequest("/api/owner/audit/recent?limit=50");
+  const list = $("ownerAuditList");
+  list.textContent = "";
+  if (!result.events.length) {
+    list.textContent = "No audit events recorded yet.";
+    return;
+  }
+  result.events.forEach(event => {
+    const row = document.createElement("div");
+    row.className = "device";
+    const detail = document.createElement("div");
+    const name = document.createElement("strong");
+    const meta = document.createElement("small");
+    name.textContent = event.event;
+    meta.textContent = (event.device_id || "System") + " · " + event.timestamp + " · " + event.details;
+    detail.append(name, meta);
+    row.append(detail);
+    list.append(row);
+  });
+}
+
+async function refreshOwnerDashboard() {
+  try {
+    await ownerRequest("/api/owner/me");
+    $("ownerAdminControls").classList.remove("hidden");
+    setOwnerStatus("Owner authenticated", "");
+    await loadOwnerDevices();
+    await loadOwnerAudit();
+    $("ownerMessage").textContent = "Owner session active. Device administration is enabled.";
+  } catch (error) {
+    $("ownerMessage").textContent = "Owner session unavailable: " + error.message;
+  }
+}
+
+$("ownerLoginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = $("ownerLoginButton");
+  button.disabled = true;
+  button.textContent = "Signing in…";
+  try {
+    const result = await api("/api/owner/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: $("ownerPassword").value })
+    });
+    sessionStorage.setItem(OWNER_TOKEN_KEY, result.access_token);
+    $("ownerPassword").value = "";
+    $("ownerAdminControls").classList.remove("hidden");
+    setOwnerStatus("Owner authenticated", "");
+    await refreshOwnerDashboard();
+  } catch (error) {
+    $("ownerMessage").textContent = "Owner sign in failed: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Owner sign in";
+  }
+});
+
+$("ownerLogout").onclick = async () => {
+  try {
+    await ownerRequest("/api/owner/logout", { method: "POST" });
+  } catch (error) {
+    $("ownerMessage").textContent = "Owner sign out: " + error.message;
+  } finally {
+    clearOwnerSession("Signed out. The owner session token was removed from this tab.");
+  }
+};
+$("ownerRefresh").onclick = refreshOwnerDashboard;
+
 async function syncQueue() {
   const queue = getQueue();
   const token = $("token").value.trim();
@@ -319,6 +469,9 @@ $("refreshHostAgent").onclick = refreshHostAgent;
 $("syncNow").onclick = syncQueue;
 window.addEventListener("online", () => { setConnectionLabel(); refresh(); syncQueue(); });
 window.addEventListener("offline", setConnectionLabel);
+
+const savedOwnerToken = sessionStorage.getItem(OWNER_TOKEN_KEY);
+if (savedOwnerToken) refreshOwnerDashboard();
 
 const savedToken = sessionStorage.getItem(TOKEN_KEY);
 if (savedToken) $("token").value = savedToken;
