@@ -3,7 +3,7 @@
 Cross-platform, consent-based remote administration and digital forensics toolkit. Early development scaffold.
 
 ## Current status
-**Dashboard/backend v0.4.2 + Linux host agent v0.1.0.** Offline-first dashboard, LAN pairing, and a separate authenticated read-only Kali/Linux host agent are available. The host agent reports system inventory over a private VPN interface. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
+**Dashboard/backend v0.5.0 + Linux host agent v0.1.0.** The project includes an offline-first dashboard, LAN pairing, authenticated read-only Linux host monitoring, optional owner authentication, owner device administration, and audit review. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
 
 ## Linux host agent (v0.1.0)
 
@@ -59,12 +59,12 @@ This is a development-only HTTP prototype. Use only on a trusted private network
 - Pairing codes expire after five minutes and can be used once.
 - Pairing claims are limited to 10 attempts per source address in each five-minute window.
 - Access tokens are stored as hashes in SQLite; the raw token is returned only during pairing.
-- Each paired device can view only its own device record and audit events; cross-device administration is not enabled.
+- Each paired device can view only its own device record and audit events. A separately authenticated owner can view all devices and system audit events, and revoke devices.
 - Do not expose the development HTTP server directly to the public internet.
 - Only install agents on devices you own or are authorized to administer.
 - Forensics features should preserve evidence integrity and record operator actions.
 
-## Offline-first behavior (v0.4.2)
+## Offline-first behavior (v0.5.0)
 - The dashboard application shell is cached by its service worker for offline reopening after it has first loaded successfully.
 - Operator notes are stored in the current browser's local storage while offline.
 - When the host API becomes reachable and the browser has a valid paired bearer token, queued notes are sent to `POST /api/sync/events`.
@@ -90,7 +90,7 @@ Owner API:
 - `GET /api/owner/audit/recent` — review recent system-wide audit events.
 - `POST /api/owner/logout` — revoke the current owner session.
 
-Owner login is limited to five failed attempts per source address in a 15-minute window. Owner session tokens are stored as hashes, expire after eight hours, and are returned with no-store cache headers. Device tokens cannot access owner endpoints. Keep the owner password and session token private, and use HTTPS before operating over any network you do not fully trust.
+Owner login is limited to five failed attempts per source address in a 15-minute window. Owner session tokens are stored as hashes, expire after eight hours, and are returned with no-store cache headers. Successful owner logins, logouts, device inventory access, audit review, and device revocations are recorded in the system audit trail. Device tokens cannot access owner endpoints. Keep the owner password and session token private, and use HTTPS before operating over any network you do not fully trust.
 
 The dashboard includes an Owner administration panel for sign-in, device inventory, revocation, and recent audit review. The same protected endpoints are documented at `/docs`.
 
@@ -107,7 +107,7 @@ The dashboard includes an Owner administration panel for sign-in, device invento
 MIT (see LICENSE).
 
 
-## Web Dashboard (v0.4.1)
+## Web Dashboard (v0.6.0)
 
 Start the API on your host computer:
 
