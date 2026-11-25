@@ -47,13 +47,15 @@ Example claim body:
 }
 ```
 
-This is a development-only HTTP prototype. Use only on a trusted private network that you control. HTTP does not encrypt traffic, so the access token can be exposed to other devices able to observe the network. Do not use public Wi-Fi, port forwarding, or expose this server to the internet. Production LAN pairing must use TLS, owner approval, rate limiting, and network access controls.
+This is a development-only HTTP prototype. Use only on a trusted private network that you control. HTTP does not encrypt traffic, so the access token can be exposed to other devices able to observe the network. Do not use public Wi-Fi, port forwarding, or expose this server to the internet. Production LAN pairing must use TLS, explicit owner approval, stronger owner authentication, and network access controls. The current prototype applies a per-source rate limit of 10 pairing claims per five-minute window, but that control is not a substitute for TLS or owner approval.
 
 ## Safety defaults
 - Backend binds to loopback by default in the quick-start command.
 - Pairing codes can only be generated locally on the host computer.
 - Pairing codes expire after five minutes and can be used once.
+- Pairing claims are limited to 10 attempts per source address in each five-minute window.
 - Access tokens are stored as hashes in SQLite; the raw token is returned only during pairing.
+- Each paired device can view only its own device record and audit events; cross-device administration is not enabled.
 - Do not expose the development HTTP server directly to the public internet.
 - Only install agents on devices you own or are authorized to administer.
 - Forensics features should preserve evidence integrity and record operator actions.
@@ -90,4 +92,4 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 Open the dashboard on the same computer: **http://127.0.0.1:8000/dashboard/**
 
-The dashboard displays host health, operating system, CPU and memory usage; generates local one-time pairing codes; and can show registered devices when supplied a paired bearer token. After pairing, the token is retained in the current browser tab session so a page refresh does not immediately lose it. Closing the tab clears that session; never share the token in screenshots or chat. It is a development interface. The prototype uses HTTP and does not implement remote screen viewing or input control. On Android, the current HTTP LAN URL is not a secure context for service-worker offline installation; HTTPS setup is a required next step for reliable offline reopening. Do not expose it to the public internet.
+The dashboard displays host health, operating system, CPU and memory usage; generates local one-time pairing codes; and can show the authenticated device's own record when supplied its paired bearer token. It does not expose other devices' inventory or audit activity. After pairing, the token is retained in the current browser tab session so a page refresh does not immediately lose it. Closing the tab clears that session; never share the token in screenshots or chat. It is a development interface. The prototype uses HTTP and does not implement remote screen viewing or input control. On Android, the current HTTP LAN URL is not a secure context for service-worker offline installation; HTTPS setup is a required next step for reliable offline reopening. Do not expose it to the public internet.
