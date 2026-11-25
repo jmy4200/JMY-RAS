@@ -29,6 +29,11 @@ def init_db():
             expires_at REAL NOT NULL,
             used INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS pairing_attempt_limits (
+            client_host TEXT PRIMARY KEY,
+            window_started REAL NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event TEXT NOT NULL,
@@ -47,6 +52,8 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_sync_events_received
             ON sync_events(received_at);
+        CREATE INDEX IF NOT EXISTS idx_audit_events_device_id
+            ON audit_events(device_id, id);
         """)
 
         # Migrate databases created before device revocation was introduced.

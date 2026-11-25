@@ -21,7 +21,7 @@
     </section>
     <section class="panel host-agent-panel" id="host-agent">
       <div class="panel-head"><div><span class="eyebrow">LIVE HOST MONITORING</span><h2>Linux Host Agent</h2></div><div class="agent-actions"><span class="tag warning" id="hostAgentStatus">Authentication required</span><button class="secondary" id="refreshHostAgent" type="button">↻ Refresh</button></div></div>
-      <p class="muted" id="hostAgentMessage">Enter a paired device bearer token in Registered devices, then select “Use token” to load authenticated host information.</p>
+      <p class="muted" id="hostAgentMessage">Enter a paired device bearer token in This device, then select “Use token” to load authenticated host information.</p>
       <div class="agent-metrics">
         <div><span>HOSTNAME</span><strong id="agentHostname">—</strong></div>
         <div><span>OPERATING SYSTEM</span><strong id="agentOs">—</strong></div>
@@ -54,9 +54,9 @@
         </form>
         <div id="claimResult" class="code-box hidden" aria-live="polite"></div>
       </article>
-      <article class="panel" id="devices"><div class="panel-head"><div><span class="eyebrow">TRUSTED ENDPOINTS</span><h2>Registered devices</h2></div><button class="secondary" id="refreshDevices">↻ Refresh</button></div>
+      <article class="panel" id="devices"><div class="panel-head"><div><span class="eyebrow">CURRENT SESSION</span><h2>This device</h2></div><button class="secondary" id="refreshDevices">↻ Refresh</button></div>
         <label for="token">Paired device access token</label><p class="muted">This browser keeps the token for the current tab session, including after a page refresh.</p><div class="token-row"><input id="token" type="password" autocomplete="off" placeholder="Paste paired device bearer token"><button class="secondary" id="saveToken" type="button">Use token</button><button class="secondary" id="clearToken" type="button">Forget</button></div>
-        <div id="deviceList" class="empty">Authenticate with a paired device token to load device inventory.</div>
+        <div id="deviceList" class="empty">Authenticate with a paired device token to view this device only.</div>
       </article>
     </section>
     <section class="panel" id="offline"><div class="panel-head"><div><span class="eyebrow">OFFLINE-FIRST WORKSPACE</span><h2>Offline notes & sync</h2></div><span class="tag" id="connectionState">Checking connection…</span></div>
@@ -67,7 +67,7 @@
       <p class="muted" id="syncMessage" aria-live="polite">Local notes are stored in this browser, not on the server, until sync completes.</p>
     </section>
     <section class="panel" id="audit"><div class="panel-head"><div><span class="eyebrow">SECURITY & TRANSPARENCY</span><h2>Security status</h2></div><span class="tag warning">DEVELOPMENT MODE</span></div>
-      <div class="security-list"><div><span class="icon">✓</span><div><strong>Single-use pairing</strong><small>Pairing code expires after 5 minutes.</small></div></div><div><span class="icon">✓</span><div><strong>Token hashing</strong><small>Server stores a hash instead of the bearer token.</small></div></div><div><span class="icon">!</span><div><strong>Transport encryption not configured</strong><small>Do not use on public or untrusted networks.</small></div></div><div><span class="icon">!</span><div><strong>Remote control is not enabled</strong><small>This release is dashboard + pairing foundation only.</small></div></div></div>
+      <div class="security-list"><div><span class="icon">✓</span><div><strong>Rate-limited pairing</strong><small>One-time codes expire after 5 minutes; each source is limited to 10 claims per 5-minute window.</small></div></div><div><span class="icon">✓</span><div><strong>Device data isolation</strong><small>Each paired device can view only its own inventory and audit events.</small></div></div><div><span class="icon">!</span><div><strong>Transport encryption not configured</strong><small>Do not use on public or untrusted networks.</small></div></div><div><span class="icon">!</span><div><strong>Remote control is not enabled</strong><small>This release is dashboard + pairing foundation only.</small></div></div></div>
     </section>
     <footer>JMY-RAS · Consent-based remote administration & digital forensics <span>Made for authorized systems only.</span></footer>
   </main>
