@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from .db import connect
 
 PAIRING_TTL_SECONDS = 300
+PAIRING_ATTEMPT_LIMIT = 10
+PAIRING_ATTEMPT_WINDOW_SECONDS = 300
 
 
 def now_iso():
@@ -15,6 +17,49 @@ def now_iso():
 
 def hash_secret(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def check_pairing_rate_limit(client_host: str) -> tuple[bool, int]:
+    """Allow a bounded number of pairing claims per source during each window."""
+    host = (client_host or "unknown")[:255]
+    now = time.time()
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT window_started,attempts FROM pairing_attempt_limits WHERE client_host=?",
+            (host,),
+        ).fetchone()
+
+        if row is None or now - row["window_started"] >= PAIRING_ATTEMPT_WINDOW_SECONDS:
+            conn.execute(
+                """INSERT INTO pairing_attempt_limits(client_host,window_started,attempts)
+                   VALUES(?,?,1)
+                   ON CONFLICT(client_host) DO UPDATE SET
+                     window_started=excluded.window_started, attempts=1""",
+                (host, now),
+            )
+            limited = False
+            retry_after = 0
+        elif row["attempts"] >= PAIRING_ATTEMPT_LIMIT:
+            limited = True
+            retry_after = max(
+                1,
+                int(PAIRING_ATTEMPT_WINDOW_SECONDS - (now - row["window_started"])),
+            )
+        else:
+            conn.execute(
+                "UPDATE pairing_attempt_limits SET attempts=attempts+1 WHERE client_host=?",
+                (host,),
+            )
+            limited = False
+            retry_after = 0
+
+        # Bound table growth without deleting active rate-limit windows.
+        conn.execute(
+            "DELETE FROM pairing_attempt_limits WHERE window_started < ?",
+            (now - 86400,),
+        )
+    return limited, retry_after
 
 
 def create_pairing_code():
