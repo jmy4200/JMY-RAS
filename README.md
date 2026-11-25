@@ -5,7 +5,11 @@ Cross-platform, consent-based remote administration and digital forensics toolki
 ## Current status
 **Dashboard/backend v0.4.2 + Linux host agent v0.1.0.** Offline-first dashboard, LAN pairing, and a separate authenticated read-only Kali/Linux host agent are available. The host agent reports system inventory over a private VPN interface. Screen capture, keyboard/mouse control, terminal access, and file transfer are not implemented.
 
-## Linux host agent (v0.1.0)\n\nSee [host_agent/README.md](host_agent/README.md) for installation and private Tailscale/WireGuard network setup. The agent defaults to loopback, requires a private bearer token, and exposes read-only health/inventory endpoints. Bind it only to the host's VPN IP for remote access; never use `0.0.0.0` or public port forwarding.\n\n## Goals
+## Linux host agent (v0.1.0)
+
+See [host_agent/README.md](host_agent/README.md) for installation and private Tailscale/WireGuard network setup. The agent defaults to loopback, requires a private bearer token, and exposes read-only health/inventory endpoints. Bind it only to the host's VPN IP for remote access; never use `0.0.0.0` or public port forwarding.
+
+## Goals
 - Offline access on a shared LAN
 - Offline-first local notes with authenticated, idempotent synchronization
 - Secure remote access over private networking (e.g. WireGuard)
@@ -68,9 +72,31 @@ This is a development-only HTTP prototype. Use only on a trusted private network
 - Local notes remain in that browser until the server confirms the sync. Clearing browser site data can erase notes that have not synced; do not use this queue as the only copy of critical forensic evidence.
 - Offline mode does not mean remote control works without a communication path. For access between sites 100 km apart, use an independently available private network link (for example a properly secured site-to-site VPN over available connectivity, or a private radio/fiber WAN).
 
+## Owner authentication and device administration
+
+Owner administration is optional and disabled until `JMY_OWNER_PASSWORD_HASH` is configured. Generate a salted PBKDF2-SHA256 password hash (600,000 iterations by default) with:
+
+```bash
+python -m backend.owner_password
+```
+
+The utility prompts for a password of at least 14 characters and prints a hash. Put that hash in your private `.env` file as `JMY_OWNER_PASSWORD_HASH=...` or add it to your deployment's secret environment variables. Do not commit the real `.env` file or publish the hash. Restart the API after configuring it.
+
+Owner API:
+- `POST /api/owner/login` — exchange the configured owner password for an eight-hour session token.
+- `GET /api/owner/me` — inspect the current owner session.
+- `GET /api/owner/devices` — list active and revoked devices.
+- `POST /api/owner/devices/{device_id}/revoke` — revoke a device credential.
+- `GET /api/owner/audit/recent` — review recent system-wide audit events.
+- `POST /api/owner/logout` — revoke the current owner session.
+
+Owner login is limited to five failed attempts per source address in a 15-minute window. Owner session tokens are stored as hashes, expire after eight hours, and are returned with no-store cache headers. Device tokens cannot access owner endpoints. Keep the owner password and session token private, and use HTTPS before operating over any network you do not fully trust.
+
+The dashboard does not yet include an owner login interface; these controls are currently available through the API documentation at `/docs`.
+
 ## Roadmap
 1. Offline-first dashboard, queued notes, and authenticated synchronization
-2. Owner authentication, device revocation, and audit improvements
+2. Owner dashboard, device administration, and audit management
 3. Encrypted transport and private networking (e.g. WireGuard)
 4. Consent-based screen sharing and visible input-control approval
 5. Secure file transfer and explicitly approved terminal sessions
