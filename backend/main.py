@@ -7,9 +7,12 @@ from pathlib import Path
 from typing import Literal
 
 import psutil
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+load_dotenv()
 
 from .db import init_db, connect
 from .network import get_lan_addresses
