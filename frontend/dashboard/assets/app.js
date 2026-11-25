@@ -83,7 +83,7 @@ async function refreshHostAgent() {
   const token = $("token").value.trim();
   if (!token) {
     setHostAgentStatus("Authentication required");
-    $("hostAgentMessage").textContent = "Enter a paired device bearer token in Registered devices, then select “Use token”.";
+    $("hostAgentMessage").textContent = "Enter a paired device bearer token in This device, then select “Use token”.";
     clearHostAgentDetails();
     return;
   }
@@ -216,7 +216,7 @@ $("claimForm").addEventListener("submit", async event => {
 async function devices() {
   const token = $("token").value.trim();
   if (!token) {
-    $("deviceList").textContent = "Enter a paired device bearer token to load the protected device list.";
+    $("deviceList").textContent = "Enter a paired device bearer token to view this device.";
     return;
   }
   try {
@@ -225,7 +225,7 @@ async function devices() {
     });
     $("deviceList").textContent = "";
     if (!result.devices.length) {
-      $("deviceList").textContent = "No paired devices registered yet.";
+      $("deviceList").textContent = "No active device record was returned.";
       return;
     }
     result.devices.forEach(device => {
@@ -239,7 +239,7 @@ async function devices() {
       details.append(name, meta);
       const tag = document.createElement("span");
       tag.className = "tag";
-      tag.textContent = "REGISTERED";
+      tag.textContent = "THIS DEVICE";
       row.append(details, tag);
       $("deviceList").append(row);
     });
