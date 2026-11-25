@@ -21,26 +21,8 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def owner_login_limit(client_host: str) -> tuple[bool, int]:
-    host = (client_host or "unknown")[:255]
-    now = time.time()
-    with connect() as conn:
-        row = conn.execute(
-            "SELECT window_started,attempts FROM owner_login_limits WHERE client_host=?",
-            (host,),
-        ).fetchone()
-        if row is None or now - row["window_started"] >= OWNER_LOGIN_WINDOW_SECONDS:
-            return False, 0
-        if row["attempts"] >= OWNER_LOGIN_ATTEMPT_LIMIT:
-            retry_after = max(
-                1,
-                int(OWNER_LOGIN_WINDOW_SECONDS - (now - row["window_started"])),
-            )
-            return True, retry_after
-        return False, 0
-
-
-def record_owner_login_failure(client_host: str) -> None:
+def consume_owner_login_attempt(client_host: str) -> tuple[bool, int]:
+    """Atomically count login attempts so concurrent requests cannot bypass the limit."""
     host = (client_host or "unknown")[:255]
     now = time.time()
     with connect() as conn:
@@ -57,16 +39,30 @@ def record_owner_login_failure(client_host: str) -> None:
                      window_started=excluded.window_started, attempts=1""",
                 (host, now),
             )
+            limited, retry_after = False, 0
+        elif row["attempts"] >= OWNER_LOGIN_ATTEMPT_LIMIT:
+            limited = True
+            retry_after = max(
+                1,
+                int(OWNER_LOGIN_WINDOW_SECONDS - (now - row["window_started"])),
+            )
         else:
             conn.execute(
                 "UPDATE owner_login_limits SET attempts=attempts+1 WHERE client_host=?",
                 (host,),
             )
+            limited, retry_after = False, 0
         conn.execute(
             "DELETE FROM owner_login_limits WHERE window_started < ?",
             (now - 86400,),
         )
+    return limited, retry_after
 
+
+def clear_owner_login_attempts(client_host: str) -> None:
+    host = (client_host or "unknown")[:255]
+    with connect() as conn:
+        conn.execute("DELETE FROM owner_login_limits WHERE client_host=?", (host,))
 
 def create_owner_session() -> tuple[str, int]:
     token = secrets.token_urlsafe(48)
