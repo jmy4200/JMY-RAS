@@ -1,6 +1,7 @@
 """Owner login sessions and password-attempt throttling."""
 
 import hashlib
+import json
 import secrets
 import time
 import uuid
@@ -19,6 +20,19 @@ def _now_iso() -> str:
 
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def record_owner_action(event: str, session_id: str) -> None:
+    """Append an owner action to the system audit trail without exposing its token."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO audit_events(event,device_id,details,timestamp) VALUES(?,NULL,?,?)",
+            (
+                event,
+                json.dumps({"owner_session_id": session_id}),
+                _now_iso(),
+            ),
+        )
 
 
 def consume_owner_login_attempt(client_host: str) -> tuple[bool, int]:

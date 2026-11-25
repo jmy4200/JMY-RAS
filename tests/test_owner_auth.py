@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from backend import db
 from backend.main import app
 from backend.owner_password import hash_password, verify_password
+from backend import owner_auth
 
 
 OWNER_PASSWORD = "JMY-RAS-Owner-Password-2026!"
@@ -92,6 +93,10 @@ def test_owner_can_list_revoke_devices_and_review_audit(tmp_path, monkeypatch):
         )
         details = json.loads(revocation_event["details"])
         assert details["actor"] == "owner"
+        audit_events = [item["event"] for item in audit.json()["events"]]
+        assert "owner_login" in audit_events
+        assert "owner_devices_listed" in audit_events
+        assert "owner_audit_viewed" in audit_events
 
         logout = client.post("/api/owner/logout", headers=owner_headers)
         assert logout.status_code == 200
@@ -129,3 +134,17 @@ def test_owner_login_throttles_repeated_failures(tmp_path, monkeypatch):
         )
         assert limited.status_code == 429
         assert int(limited.headers["retry-after"]) > 0
+
+
+
+def test_owner_session_expires_after_its_ttl(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "owner-expiry.sqlite3")
+    db.init_db()
+    fixed_now = 1_800_000_000
+    monkeypatch.setattr(owner_auth.time, "time", lambda: fixed_now)
+
+    token, expires_at = owner_auth.create_owner_session()
+    assert owner_auth.authenticate_owner_session(token) is not None
+
+    monkeypatch.setattr(owner_auth.time, "time", lambda: expires_at + 1)
+    assert owner_auth.authenticate_owner_session(token) is None

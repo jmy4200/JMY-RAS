@@ -16,7 +16,7 @@ def test_home(client):
     response = client.get("/")
     assert response.status_code == 200
     assert response.json()["system"] == "JMY-RAS"
-    assert response.json()["version"] == "0.4.2"
+    assert response.json()["version"] == "0.5.0"
 
 
 def test_health(client):
