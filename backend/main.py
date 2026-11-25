@@ -30,13 +30,14 @@ from .owner_auth import (
     revoke_owner_session,
     consume_owner_login_attempt,
     clear_owner_login_attempts,
+    record_owner_action,
 )
 from .owner_password import verify_password
 
 app = FastAPI(
     title="JMY Remote Access System",
     description="Consent-based remote administration and digital forensics development platform.",
-    version="0.4.2",
+    version="0.5.0",
 )
 
 
@@ -202,6 +203,8 @@ def owner_login(payload: OwnerLoginRequest, request: Request, response: Response
 
     clear_owner_login_attempts(client_host)
     token, expires_at = create_owner_session()
+    owner_session = authenticate_owner_session(token)
+    record_owner_action("owner_login", owner_session["id"])
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     return {
@@ -219,6 +222,7 @@ def owner_me(owner=Depends(current_owner)):
 
 @app.post("/api/owner/logout", tags=["owner"])
 def owner_logout(owner=Depends(current_owner)):
+    record_owner_action("owner_logout", owner["id"])
     revoke_owner_session(owner["id"])
     return {"logged_out": True}
 
@@ -230,6 +234,7 @@ def owner_list_devices(owner=Depends(current_owner)):
             """SELECT id,name,platform,created_at,last_seen,is_active
                FROM devices ORDER BY created_at DESC"""
         ).fetchall()
+    record_owner_action("owner_devices_listed", owner["id"])
     return {"devices": [dict(row) for row in rows]}
 
 
@@ -243,6 +248,7 @@ def owner_revoke_device(device_id: str, owner=Depends(current_owner)):
 @app.get("/api/owner/audit/recent", tags=["owner"])
 def owner_recent_audit(limit: int = 100, owner=Depends(current_owner)):
     limit = max(1, min(limit, 500))
+    record_owner_action("owner_audit_viewed", owner["id"])
     with connect() as conn:
         rows = conn.execute(
             """SELECT event,device_id,details,timestamp
