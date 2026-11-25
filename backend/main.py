@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import os
 import json
 import platform
 import socket
@@ -20,6 +21,14 @@ from .security import (
     check_pairing_rate_limit,
 )
 from .host_agent_client import fetch_host_agent, HostAgentUnavailable
+from .owner_auth import (
+    create_owner_session,
+    authenticate_owner_session,
+    revoke_owner_session,
+    owner_login_limit,
+    record_owner_login_failure,
+)
+from .owner_password import verify_password
 
 app = FastAPI(
     title="JMY Remote Access System",
@@ -37,6 +46,10 @@ class PairRequest(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
     device_name: str = Field(min_length=1, max_length=80)
     platform: str = Field(min_length=1, max_length=80)
+
+
+class OwnerLoginRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
 
 
 class OfflineEvent(BaseModel):
@@ -59,6 +72,17 @@ def current_device(authorization: str | None = Header(default=None)):
     if not device:
         raise HTTPException(status_code=401, detail="Invalid access token")
     return device
+
+
+def current_owner(authorization: str | None = Header(default=None)):
+    parts = authorization.strip().split() if authorization else []
+    if len(parts) != 2 or parts[0].casefold() != "bearer":
+        raise HTTPException(status_code=401, detail="Owner bearer token required")
+
+    session = authenticate_owner_session(parts[1])
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired owner session")
+    return session
 
 
 @app.get("/", tags=["status"])
@@ -150,6 +174,79 @@ def claim_pairing(payload: PairRequest, request: Request, response: Response):
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     return result
+
+
+@app.post("/api/owner/login", tags=["owner"])
+def owner_login(payload: OwnerLoginRequest, request: Request, response: Response):
+    password_hash = os.getenv("JMY_OWNER_PASSWORD_HASH", "").strip()
+    if not password_hash:
+        raise HTTPException(
+            status_code=503,
+            detail="Owner authentication is not configured on this server",
+        )
+
+    client_host = request.client.host if request.client else "unknown"
+    limited, retry_after = owner_login_limit(client_host)
+    if limited:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many owner login failures. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    if not verify_password(payload.password, password_hash):
+        record_owner_login_failure(client_host)
+        raise HTTPException(status_code=401, detail="Invalid owner credentials")
+
+    token, expires_at = create_owner_session()
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_at": expires_at,
+        "expires_in": 8 * 60 * 60,
+    }
+
+
+@app.get("/api/owner/me", tags=["owner"])
+def owner_me(owner=Depends(current_owner)):
+    return {"session_id": owner["id"], "expires_at": owner["expires_at"]}
+
+
+@app.post("/api/owner/logout", tags=["owner"])
+def owner_logout(owner=Depends(current_owner)):
+    revoke_owner_session(owner["id"])
+    return {"logged_out": True}
+
+
+@app.get("/api/owner/devices", tags=["owner"])
+def owner_list_devices(owner=Depends(current_owner)):
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT id,name,platform,created_at,last_seen,is_active
+               FROM devices ORDER BY created_at DESC"""
+        ).fetchall()
+    return {"devices": [dict(row) for row in rows]}
+
+
+@app.post("/api/owner/devices/{device_id}/revoke", tags=["owner"])
+def owner_revoke_device(device_id: str, owner=Depends(current_owner)):
+    if not revoke_device(device_id, actor="owner", actor_id=owner["id"]):
+        raise HTTPException(status_code=404, detail="Device not found or already revoked")
+    return {"device_id": device_id, "revoked": True}
+
+
+@app.get("/api/owner/audit/recent", tags=["owner"])
+def owner_recent_audit(limit: int = 100, owner=Depends(current_owner)):
+    limit = max(1, min(limit, 500))
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT event,device_id,details,timestamp
+               FROM audit_events ORDER BY id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return {"events": [dict(row) for row in rows]}
 
 
 @app.get("/api/devices/me", tags=["devices"])
